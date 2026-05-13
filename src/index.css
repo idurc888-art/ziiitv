@@ -1,0 +1,88 @@
+:root {
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 1920px;
+  height: 1080px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  text-align: left;
+  display: block;
+  box-sizing: border-box;
+  overflow: hidden;
+  background-color: transparent !important;
+}
+
+html, body {
+  margin: 0;
+  /* ★ HOLE PUNCH TIZEN: background DEVE ser transparent para o chip de vídeo 
+     AVPlay (que renderiza ATRÁS do HTML) ser visível através do DOM.
+     Cada tela que precisar de fundo preto deve ter seu próprio container. */
+  background-color: transparent !important;
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden; /* Tizen TVs should never scroll the body */
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ziiiTV — Tizen TV Animations (GPU-composited only)
+   ═══════════════════════════════════════════════════════════════ */
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
+
+@keyframes videoFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Typewriter description lines */
+.typewriter-line {
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+}
+.typewriter-line-1 {
+  animation: typewriter 0.6s steps(30) forwards, fadeIn 0.1s forwards;
+  animation-delay: 0s, 0s;
+}
+.typewriter-line-2 {
+  animation: typewriter 0.6s steps(30) forwards, fadeIn 0.1s forwards;
+  animation-delay: 0.6s, 0.6s;
+}
+.typewriter-line-3 {
+  animation: typewriter 0.6s steps(30) forwards, fadeIn 0.1s forwards;
+  animation-delay: 1.2s, 1.2s;
+}
+
+/* Video preview fade-in overlay */
+.video-preview-fade {
+  animation: videoFadeIn 400ms ease-out forwards;
+}

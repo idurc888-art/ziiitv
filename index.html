@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=1920, initial-scale=1.0" />
+    <title>ziiitv</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@100;300;400;600;700;800;900&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+      * { font-family: 'Outfit', sans-serif; }
+      @keyframes slideFromLeft   { from { opacity:0; transform: translateX(-36px) } to { opacity:1; transform: translateX(0) } }
+      @keyframes slideFromRight  { from { opacity:0; transform: translateX(36px) }  to { opacity:1; transform: translateX(0) } }
+      @keyframes slideFromTop    { from { opacity:0; transform: translateY(-22px) } to { opacity:1; transform: translateY(0) } }
+      @keyframes slideFromBottom { from { opacity:0; transform: translateY(22px) }  to { opacity:1; transform: translateY(0) } }
+      @keyframes cardFadeIn      { from { opacity:0 } to { opacity:1 } }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Shaka Player: UMD global carregado antes do bundle (window.shaka) -->
+    <script src="/shaka-player.js?v=20260425"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
