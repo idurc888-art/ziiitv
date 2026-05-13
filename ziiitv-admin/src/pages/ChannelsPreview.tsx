@@ -186,7 +186,7 @@ export function ChannelsPreview() {
           Preview TV ({rows.length} fileiras)
         </h2>
         <div className="space-y-2">
-          {rows.map((row) => (
+          {rows.map((row, idx) => (
             <div key={`${row.streaming}-${row.type}`} className="bg-gray-800 rounded-lg p-3">
               <div className="text-white font-medium mb-2">
                 {row.emoji} {row.streaming} {row.type === 'movie' ? 'Filmes' : 'Séries'}

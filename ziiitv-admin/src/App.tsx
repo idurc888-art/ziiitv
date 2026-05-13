@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './stores/authStore'
@@ -7,7 +7,6 @@ import { Layout } from './components/layout/Layout'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { Login } from './pages/Login'
 import { Unauthorized } from './pages/Unauthorized'
-import { LinkPage } from './pages/LinkPage'
 
 import { Dashboard } from './pages/Dashboard'
 import { Users } from './pages/Users'
@@ -43,7 +42,6 @@ export function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
-          <Route path="/link" element={<LinkPage />} />
           
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>

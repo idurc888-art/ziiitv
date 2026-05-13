@@ -1,3 +1,4 @@
+import React from 'react'
 import { classNames } from '../../lib/utils'
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -27,7 +28,7 @@ export function Input({ label, error, icon, className, id, ...props }: InputProp
           className={classNames(
             'w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary',
             'placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors',
-            icon ? 'pl-9' : '',
+            icon && 'pl-9',
             error && 'border-danger focus:border-danger',
             className
           )}

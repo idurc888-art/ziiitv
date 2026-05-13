@@ -1,3 +1,4 @@
+import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { classNames } from '../../lib/utils'
 import { useAuthStore } from '../../stores/authStore'

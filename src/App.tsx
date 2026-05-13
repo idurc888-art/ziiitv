@@ -1,43 +1,39 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { useChannelsStore } from './store/channelsStore'
-import DebugOverlay from './components/DebugOverlay'
-import PlayerScreen from './screens/PlayerScreen/PlayerScreen'
-import SplashScreen from './screens/SplashScreen/SplashScreen'
-import ProfileScreen from './screens/ProfileScreen/ProfileScreen'
-import HomeScreen from './screens/HomeScreen/HomeScreen'
-import SetupScreen from './screens/SetupScreen/SetupScreen'
-import TransitionOverlay from './components/TransitionOverlay'
-import FullscreenOverlay from './components/FullscreenOverlay'
 import { keyboardMaestro } from './services/keyboardManager'
 import { expandManager } from './services/expandManager'
 import { AuthService } from './services/authService'
 import { Logger } from './services/LoggerService'
-import type { PairToken } from './services/pairingService'
+import { transitionStore } from './services/transitionStore'
+import { playerManager } from './services/PlayerManager'
 
-// ★ FIX #3 — URL de teste nunca entra no bundle de produção
-const TEST_M3U_URL = import.meta.env.DEV
-  ? (import.meta.env.VITE_TEST_M3U_URL || '')
-  : ''
+// Lazy load das telas pesadas
+const DebugOverlay = lazy(() => import('./components/DebugOverlay'))
+const PlayerScreen = lazy(() => import('./screens/PlayerScreen/PlayerScreen'))
+const SplashScreen = lazy(() => import('./screens/SplashScreen/SplashScreen'))
+const ProfileScreen = lazy(() => import('./screens/ProfileScreen/ProfileScreen'))
+const HomeScreen = lazy(() => import('./screens/HomeScreen/HomeScreen'))
+const CodeEntryScreen = lazy(() => import('./screens/CodeEntryScreen/CodeEntryScreen'))
+const SeriesDetailScreen = lazy(() => import('./screens/SeriesDetailScreen/SeriesDetailScreen'))
+const TransitionOverlay = lazy(() => import('./components/TransitionOverlay'))
+const FullscreenOverlay = lazy(() => import('./components/FullscreenOverlay'))
 
-type AppScreen = 'splash' | 'setup' | 'profiles' | 'home'
+type AppScreen = 'splash' | 'profiles' | 'code-entry' | 'home'
 
-/** Retorna true se o usuário já tem uma playlist configurada */
-function hasStoredPlaylist(): boolean {
-  try {
-    return !!(localStorage.getItem('ziiiTV_lastUrl') || localStorage.getItem('ziiiTV_lastCode'))
-  } catch (_) {
-    return false
-  }
-}
+const SCREEN_KEY = 'ziiiTV_appScreen'
 
 export default function App() {
   const normalizedGroups  = useChannelsStore(s => s.normalizedGroups)
-  const loadFromUrl       = useChannelsStore(s => s.loadFromUrl)
   const loadFromCode      = useChannelsStore(s => s.loadFromCode)
   const currentChannel    = useChannelsStore(s => s.currentChannel)
   const setCurrentChannel = useChannelsStore(s => s.setCurrentChannel)
 
-  // Sempre começa em 'splash'; a lógica de boot decide para onde ir depois
+  const [codeError, setCodeError] = useState<string | null>(null)
+  const [codeLoading, setCodeLoading] = useState(false)
+  const [seriesChannel, setSeriesChannel] = useState<any | null>(null)
+  const [seriesSimilar, setSeriesSimilar] = useState<any[]>([])
+
+  // Força SplashScreen -> ProfileScreen -> HomeScreen em toda inicialização
   const [appScreen, setAppScreen] = useState<AppScreen>('splash')
   const [showDebug, setShowDebug] = useState(false)
 
@@ -47,9 +43,17 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const view = currentChannel ? 'player' : appScreen === 'profiles' ? 'profiles' : 'main'
+    const view = currentChannel 
+      ? 'player' 
+      : seriesChannel
+        ? 'series-detail'
+        : appScreen === 'profiles' 
+          ? 'profiles' 
+          : appScreen === 'code-entry'
+            ? 'code-entry'
+            : 'main'
     keyboardMaestro.setActiveView(view)
-  }, [appScreen, currentChannel])
+  }, [appScreen, currentChannel, seriesChannel])
 
   // ─── Teclas Globais e BACK Handling ────────────────────────────────────────
   useEffect(() => {
@@ -59,6 +63,26 @@ export default function App() {
         setShowDebug(prev => !prev)
       }
 
+      // ─── Zap de Canal (427=CH+, 428=CH-) ─────────────────────────────
+      // Funciona em qualquer tela — troca canal ao vivo diretamente
+      if (e.keyCode === 427 || e.keyCode === 428) {
+        e.preventDefault()
+        const allGroups = useChannelsStore.getState().normalizedGroups || {}
+        const all = Object.values(allGroups).flat()
+        if (all.length === 0) return
+        const cur = useChannelsStore.getState().currentChannel
+        const idx = cur ? all.findIndex(c => c.id === cur.id) : -1
+        const next = e.keyCode === 427
+          ? all[(idx + 1) % all.length]
+          : all[(idx - 1 + all.length) % all.length]
+        if (next) {
+          transitionStore.show('', '')
+          useChannelsStore.getState().setCurrentChannel(next)
+        }
+        return
+      }
+
+      // Interceptação global do BACK para Collapse de tela
       const isBack = e.keyCode === 10009 || e.keyCode === 8 || e.key === 'Backspace'
       if (isBack) {
         if (expandManager.isExpanded()) {
@@ -66,6 +90,8 @@ export default function App() {
           e.stopPropagation()
           expandManager.triggerCollapse()
           setCurrentChannel(null)
+          keyboardMaestro.setActiveView('main')
+          window.dispatchEvent(new CustomEvent('ziiiTV:playerClosed'))
         }
       }
     }
@@ -73,58 +99,33 @@ export default function App() {
     return () => keyboardMaestro.unsubscribe('global:app')
   }, [])
 
+  // ref para o player Shaka ativo (preenchido pelo PlayerScreen via callback)
   const shakaRef = useRef<any>(null)
 
-  // ─── Boot: SplashScreen → decide fluxo após auth + playlist ──────────────
+  // ─── Boot: inicia playlist em background durante splash ───────────────────
   useEffect(() => {
     const tStart = performance.now()
+    const savedCode = localStorage.getItem('ziiiTV_lastCode')
+
+    // Só carrega automaticamente se tiver código salvo
+    const loadPromise = savedCode 
+      ? loadFromCode(savedCode).catch((err) => {
+          console.warn('[Boot] Erro ao carregar código salvo:', err)
+          return Promise.resolve() // Não bloqueia o boot
+        })
+      : Promise.resolve() // Não carrega nada, espera usuário digitar código
 
     Promise.all([
       AuthService.checkUserAuth(),
+      loadPromise,
     ]).then(() => {
       const elapsed = performance.now() - tStart
-      Logger.boot('AUTH_READY', `Auth pronto em ${elapsed.toFixed(0)}ms`)
+      Logger.boot('SYSTEM_READY', `Sistema pronto em ${elapsed.toFixed(0)}ms`)
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /**
-   * Chamado pela SplashScreen ao terminar.
-   * FIX #1 — Detecta se é primeiro uso (sem playlist) e redireciona para SetupScreen.
-   */
-  function handleSplashDone() {
-    if (!hasStoredPlaylist()) {
-      // Primeiro uso: sem playlist salva → SetupScreen (QR pairing)
-      setAppScreen('setup')
-      return
-    }
-
-    // Usuário já tem playlist — carrega em paralelo e vai pra profiles
-    const lastCode = localStorage.getItem('ziiiTV_lastCode')
-    const lastUrl  = localStorage.getItem('ziiiTV_lastUrl') || TEST_M3U_URL
-
-    if (lastCode) {
-      loadFromCode(lastCode).catch(console.error)
-    } else if (lastUrl) {
-      loadFromUrl(lastUrl).catch(console.error)
-    }
-
-    setAppScreen('profiles')
-  }
-
-  /**
-   * Chamado pela SetupScreen quando o pairing é completado com sucesso.
-   * FIX #1 — Recebe os dados do PairToken e inicia o carregamento da playlist.
-   */
-  function handleSetupComplete(data: PairToken) {
-    if (data.playlist_type === 'xtream' && data.xtream_host && data.xtream_user && data.xtream_pass) {
-      // Xtream: monta URL M3U a partir das credenciais
-      const url = `${data.xtream_host}/get.php?username=${data.xtream_user}&password=${data.xtream_pass}&type=m3u_plus&output=ts`
-      loadFromUrl(url).catch(console.error)
-    } else if (data.playlist_url) {
-      loadFromUrl(data.playlist_url).catch(console.error)
-    }
-    setAppScreen('profiles')
-  }
+  // TMDB warmup agora é disparado dentro do store (loadFromUrl) após status 'ready'
+  // Removido daqui para evitar duplo-processamento
 
   // ─── Samsung: pause/resume ao sair/voltar para o app ─────────────────────
   useEffect(() => {
@@ -132,15 +133,20 @@ export default function App() {
       const avplay = (window as any).webapis?.avplay
 
       if (document.visibilityState === 'hidden') {
+        // AVPlay (streams TS)
         try { avplay?.pause() } catch (_) {}
+        // Shaka (streams HLS/DASH)
         try {
           if (shakaRef.current) {
             const video = shakaRef.current.getMediaElement?.() as HTMLVideoElement | null
             if (video && !video.paused) video.pause()
           }
         } catch (_) {}
+
       } else if (document.visibilityState === 'visible') {
+        // AVPlay
         try { avplay?.play() } catch (_) {}
+        // Shaka
         try {
           if (shakaRef.current) {
             const video = shakaRef.current.getMediaElement?.() as HTMLVideoElement | null
@@ -154,71 +160,150 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
+  // ─── Persistir tela ativa para restore ─────────────────────────────────────
+  useEffect(() => {
+    try { localStorage.setItem(SCREEN_KEY, appScreen) } catch(_) {}
+  }, [appScreen])
+
+
   // ─── Roteamento: App Container Rígido (1920x1080) ─────────────────────────
   return (
     <div className="app-root" style={{ position: 'relative', width: 1920, height: 1080, overflow: 'hidden' }}>
-
-      {currentChannel ? (
-        <>
-          <TransitionOverlay />
-          {showDebug && <DebugOverlay />}
-          <PlayerScreen
-            channel={currentChannel}
-            onShakaReady={(player) => { shakaRef.current = player }}
-            onBack={() => {
-              if (expandManager.isSeamlessActive() && expandManager.getChannel()?.id === currentChannel.id) {
-                expandManager.triggerCollapse()
-                setCurrentChannel(null)
-                return
-              }
-              if (shakaRef.current) {
-                try { shakaRef.current.destroy() } catch (_) {}
-              }
+      <Suspense fallback={<div style={{ background: '#000', width: 1920, height: 1080 }} />}>
+        {appScreen === 'splash' ? (
+          <>
+            {showDebug && <DebugOverlay />}
+            <SplashScreen onDone={() => setAppScreen('profiles')} />
+          </>
+        ) : appScreen === 'profiles' ? (
+          <>
+            {showDebug && <DebugOverlay />}
+            <ProfileScreen
+              onSelect={() => setAppScreen('home')}
+              onEnterCode={() => { setCodeError(null); setAppScreen('code-entry') }}
+            />
+          </>
+        ) : appScreen === 'code-entry' ? (
+          <CodeEntryScreen
+            loading={codeLoading}
+            error={codeError}
+            onBack={() => setAppScreen('profiles')}
+            onConfirm={async (code) => {
+              setCodeLoading(true)
+              setCodeError(null)
               try {
-                const av = (window as any).webapis?.avplay
-                if (av) av.stop()
-              } catch (_) {}
-              shakaRef.current = null
-              setCurrentChannel(null)
-              document.body.focus()
-            }}
-          />
-        </>
-      ) : appScreen === 'splash' ? (
-        <>
-          {showDebug && <DebugOverlay />}
-          <SplashScreen onDone={handleSplashDone} />
-        </>
-      ) : appScreen === 'setup' ? (
-        // FIX #1 — SetupScreen integrada ao roteamento
-        <>
-          {showDebug && <DebugOverlay />}
-          <SetupScreen onComplete={handleSetupComplete} />
-        </>
-      ) : appScreen === 'profiles' ? (
-        <>
-          <TransitionOverlay />
-          {showDebug && <DebugOverlay />}
-          <ProfileScreen onSelect={() => setAppScreen('home')} />
-        </>
-      ) : (
-        <>
-          <FullscreenOverlay onEnterPlayerMode={(ch) => setCurrentChannel(ch)} />
-          <TransitionOverlay />
-          {showDebug && <DebugOverlay />}
-          <HomeScreen
-            groups={normalizedGroups}
-            onPlay={(ch) => setCurrentChannel(ch)}
-            onBack={() => {
-              const tizen = (window as any).tizen
-              if (tizen?.application) {
-                tizen.application.getCurrentApplication().exit()
+                await loadFromCode(code)
+                setAppScreen('home')
+              } catch (err: any) {
+                setCodeError(err.message || 'Código inválido')
+              } finally {
+                setCodeLoading(false)
               }
             }}
           />
-        </>
-      )}
+        ) : (
+          <>
+            {/* SeriesDetailScreen: sobrepõe a Home quando série selecionada */}
+            {seriesChannel && (
+              <SeriesDetailScreen
+                channel={seriesChannel}
+                similar={seriesSimilar}
+                onBack={() => { setSeriesChannel(null); setSeriesSimilar([]) }}
+                onPlay={(url, label) => {
+                  const ch = {
+                    ...seriesChannel,
+                    activeStream: { url, quality: 'UNKNOWN' as const, label },
+                    streams: [{ url, quality: 'UNKNOWN' as const, label }],
+                  }
+                  setSeriesChannel(null)
+                  setCurrentChannel(ch)
+                }}
+              />
+            )}
 
+            {/* HomeScreen: montada uma vez, CSS-hidden quando o player está ativo. */}
+            <div style={{
+              display: (currentChannel || seriesChannel) ? 'none' : 'block',
+              pointerEvents: (currentChannel || seriesChannel) ? 'none' : 'auto',
+            }}>
+              <FullscreenOverlay onEnterPlayerMode={(ch) => setCurrentChannel(ch)} />
+              <HomeScreen
+                groups={normalizedGroups}
+                onPlay={(ch) => {
+                  // Série com episódios → abre SeriesDetailScreen
+                  const isSeries = (ch as any).canonical?.type === 'series'
+                  const hasEpisodes = ch.streams?.some(s => /S\d+E\d+/i.test(s.label))
+                  if (isSeries && hasEpisodes) {
+                    const streaming = (ch as any).canonical?.streaming
+                    const allChannels = Object.values(normalizedGroups || {}).flat()
+                    const similar = allChannels
+                      .filter((c: any) => {
+                        const canon = c.canonical
+                        if (!canon || c.id === ch.id) return false
+                        const hasPoster = !!(canon.poster || canon.backdrop)
+                        if (!hasPoster) return false
+                        if (streaming && streaming !== 'unknown' && canon.streaming === streaming) return true
+                        return canon.type === 'series'
+                      })
+                      .sort((a: any, b: any) => (b.canonical?.rating || 0) - (a.canonical?.rating || 0))
+                      .slice(0, 12)
+                    setSeriesSimilar(similar)
+                    setSeriesChannel(ch)
+                    return
+                  }
+                  const backdrop = ch.tmdb?.backdrop || ch.logo || ''
+                  const img = backdrop.startsWith('http') ? backdrop : backdrop ? `https://image.tmdb.org/t/p/w780${backdrop}` : ''
+                  transitionStore.show(img, 'Carregando...')
+                  setCurrentChannel(ch)
+                }}
+                onBack={() => {
+                  const tizen = (window as any).tizen
+                  if (tizen?.application) {
+                    tizen.application.getCurrentApplication().exit()
+                  }
+                }}
+              />
+            </div>
+
+            {/* TransitionOverlay e DebugOverlay ficam fora do wrapper — visíveis em todos os estados */}
+            <TransitionOverlay />
+            {showDebug && <DebugOverlay />}
+
+            {/* PlayerScreen: montado sobre a HomeScreen quando canal selecionado */}
+            {currentChannel && (
+              <PlayerScreen
+                channel={currentChannel}
+                onShakaReady={(player) => { shakaRef.current = player }}
+                onReady={() => transitionStore.hide()}
+                onBack={() => {
+                  if (expandManager.isSeamlessActive() && expandManager.getChannel()?.id === currentChannel.id) {
+                    expandManager.triggerCollapse()
+                    setCurrentChannel(null)
+                    keyboardMaestro.setActiveView('main')
+                    window.dispatchEvent(new CustomEvent('ziiiTV:playerClosed'))
+                    document.body.focus()
+                    return
+                  }
+                  // Tenta shrink back para o card (retoma preview)
+                  const shrunk = playerManager.shrinkToCard()
+                  if (shakaRef.current) {
+                    try { shakaRef.current.destroy() } catch(_) {}
+                    shakaRef.current = null
+                  }
+                  if (!shrunk) {
+                    try { const av = (window as any).webapis?.avplay; if (av) av.stop() } catch(_) {}
+                  }
+                  setCurrentChannel(null)
+                  keyboardMaestro.setActiveView('main')
+                  // Força re-scroll para a row focada após fechar o player
+                  window.dispatchEvent(new CustomEvent('ziiiTV:playerClosed'))
+                  document.body.focus()
+                }}
+              />
+            )}
+          </>
+        )}
+      </Suspense>
     </div>
   )
 }

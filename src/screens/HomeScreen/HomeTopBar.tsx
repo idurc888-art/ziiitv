@@ -7,7 +7,6 @@ interface Props {
   topbarIdx: number
   activeView: DashboardView
   accent: string
-  links?: Array<{ label: string; view: DashboardView }> // filtrado por hasChannels
 }
 
 function itemGlow(active: boolean): React.CSSProperties {
@@ -19,8 +18,7 @@ function itemGlow(active: boolean): React.CSSProperties {
     : {}
 }
 
-export default function HomeTopBar({ focusZone, topbarIdx, activeView, accent, links }: Props) {
-  const visibleLinks = links ?? TOPBAR_LINKS
+export default function HomeTopBar({ focusZone, topbarIdx, activeView, accent }: Props) {
   return (
     <div style={{
       position: 'absolute', top: 0, left: 0, right: 0,
@@ -36,7 +34,7 @@ export default function HomeTopBar({ focusZone, topbarIdx, activeView, accent, l
       transition: 'opacity 300ms ease, transform 300ms ease',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {visibleLinks.map((link, i) => {
+        {TOPBAR_LINKS.map((link, i) => {
           const active = focusZone === 'topbar' && topbarIdx === i
           const isCurrentView = activeView === link.view
           return (
@@ -60,6 +58,5 @@ export default function HomeTopBar({ focusZone, topbarIdx, activeView, accent, l
         })}
       </div>
     </div>
-  );
+  )
 }
-

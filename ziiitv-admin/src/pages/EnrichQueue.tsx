@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseAdmin } from '../lib/supabase'
 import { getDetailedTMDBData } from '../lib/tmdbFetch'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -62,6 +62,8 @@ interface ReviewItem {
   tmdbResult: any
   score: number
 }
+
+type BatchSize = 10 | 20 | 50 | 100
 
 export function EnrichQueue() {
   const { id: playlistId } = useParams<{ id: string }>()

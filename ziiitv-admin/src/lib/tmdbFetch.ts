@@ -1,4 +1,7 @@
-const TMDB_KEY: string = import.meta.env.VITE_TMDB_API_KEY ?? 'b68afbadedebf0889f00a0cf577d3e5a'
+const TMDB_KEY: string =
+  (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_TMDB_API_KEY : undefined)
+  ?? (typeof process !== 'undefined' ? process.env.VITE_TMDB_API_KEY : undefined)
+  ?? 'b68afbadedebf0889f00a0cf577d3e5a'
 
 /**
  * Faz a chamada detalhada para o TMDB (Movie ou TV) puxando vídeos, créditos e datas de lançamento.

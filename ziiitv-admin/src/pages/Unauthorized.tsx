@@ -1,3 +1,4 @@
+import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '../components/ui/EmptyState'
 import { ShieldAlert } from 'lucide-react'

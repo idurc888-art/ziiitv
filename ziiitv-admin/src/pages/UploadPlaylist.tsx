@@ -184,6 +184,7 @@ export function UploadPlaylist() {
 
       if (cancelledRef.current) return
 
+      const totalToInsert = matchedChannels.length + (unmatchedChannels?.length || 0) + (liveTVChannels?.length || 0)
       console.log('[Upload] Worker done — matched:', matchedChannels.length, 'unmatched:', unmatchedChannels?.length, 'liveTV:', liveTVChannels?.length)
       console.log('[Upload] LiveTV sample:', liveTVChannels?.slice(0,3).map((c:any) => c.name))
       setStats(s => ({ ...s, parsed: ws.parsed, normalized: ws.normalized, matched: matchedChannels.length, movies: ws.movies || 0, series: ws.series || 0, liveTV: ws.liveTV || 0 }))

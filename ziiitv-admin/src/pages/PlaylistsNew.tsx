@@ -226,7 +226,7 @@ export function Playlists() {
                 <div className="flex items-center gap-2 ml-4">
                   {playlist.status === 'ready' && (
                     <Button
-                      variant="ghost"
+                      variant="secondary"
                       size="sm"
                       onClick={() => navigate(`/playlists/${playlist.id}`)}
                     >

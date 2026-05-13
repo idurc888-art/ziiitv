@@ -27,7 +27,6 @@ import type { HomeScreenProps as Props, FocusZone, DashboardView } from './homeT
 import {
     TEXT_MUTED, FOCUS_SCALE, FOCUS_DURATION, FOCUS_EASING, UNFOCUS_OPACITY,
     CATEGORY_ICONS, SIDEBAR_ICONS, TOPBAR_LINKS,
-    getAvailableTopbarLinks, getAvailableSidebarIcons,
 } from './homeConstants'
 import { tmdbImg, getAgeRating, saveNavState, loadNavState, buildInitialCols } from './homeUtils'
 import SideCard from '../../components/SideCard'
@@ -44,8 +43,7 @@ import DetailOverlay from './DetailOverlay'
 // Base de design: 1920px. Cards de 317px nessa base.
 // VW is now a reactive state inside the component — see `vw` below
 
-export default function HomeScreen({ groups, onPlay, onBack, initialView }: Props) {
-    const hasChannels = Object.keys(groups ?? {}).length > 0
+export default function HomeScreen({ groups, onPlay, onBack }: Props) {
     const saved = useRef(loadNavState()).current
     const [focusZone, setFocusZone] = useState<FocusZone>('topbar')
     const [sidebarIdx, setSidebarIdx] = useState(0)
@@ -56,8 +54,7 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
     const [contentCols, setContentCols] = useState<number[]>([])
     const [showExit, setShowExit] = useState(false)
     const [exitFocus, setExitFocus] = useState(0)
-    // initialView: Copa quando entra sem lista; 'home' caso padrão
-    const [activeView, setActiveView] = useState<DashboardView>(initialView ?? 'home')
+    const [activeView, setActiveView] = useState<DashboardView>((saved?.activeView as DashboardView) || 'home')
     const [isLoadingContent, setIsLoadingContent] = useState(false)
     const [content, setContent] = useState<ScreenContent | null>(null)
     const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(mockHeroSlides)
@@ -109,10 +106,6 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
     const ACCENT = activeView === 'live' ? '#10b981' : '#ff006e'
     const GLOW = activeView === 'live' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255, 0, 110, 0.4)'
     const FOCUS_BORDER = `3px solid ${ACCENT}`
-
-    // App é IPTV player puro — topbar sempre completo
-    const availableTopbarLinks = getAvailableTopbarLinks(true)
-
 
     // ─── Display toggle para liberar RAM durante o fullscreen ────────────
     const [homeVisible, setHomeVisible] = useState(true)
@@ -193,7 +186,18 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
         return () => window.removeEventListener('resize', onResize)
     }, [])
 
-    // ─── Auto-redirect removido: sem canais = spinner na Home (não vai pra Copa) ────
+    // ─── Sem lista? Abre direto na COPA; volta p/ home quando carregar ────
+    const autoRedirectedToCopaRef = useRef(false)
+    useEffect(() => {
+        const hasChannels = Object.values(groups).some(arr => arr.length > 0)
+        if (!hasChannels && activeView === 'home') {
+            autoRedirectedToCopaRef.current = true
+            setActiveView('copa')
+        } else if (hasChannels && activeView === 'copa' && autoRedirectedToCopaRef.current) {
+            autoRedirectedToCopaRef.current = false
+            setActiveView('home')
+        }
+    }, [groups])
 
     // ─── Content cache per view (troca de aba instantânea) ──────────────
     const contentCache = useRef<Partial<Record<DashboardView, ScreenContent>>>({})
@@ -202,16 +206,9 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
     useEffect(() => {
         let cancelled = false
 
-        // Sem canais ainda: aguarda groups popular (não cacheia resultado vazio)
-        const groupCount = Object.keys(groups ?? {}).length
-        if (groupCount === 0 && activeView !== 'copa') {
-            setIsLoadingContent(false)
-            return
-        }
-
-        // Cache hit: retorna instantâneo (só aceita cache com rows reais)
+        // Cache hit: retorna instantâneo
         const cached = contentCache.current[activeView]
-        if (cached && cached.rows.length > 0) {
+        if (cached) {
             setContent(cached)
             setIsLoadingContent(false)
             setContentRow(contentRowPerView.current[activeView] ?? 0)
@@ -226,7 +223,7 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
 
         setIsLoadingContent(true)
         const load = async () => {
-            loadingObserver.lock()
+            loadingObserver.lock() // ★ Bloqueia input do controle durante o processamento
             try {
                 let data: ScreenContent
                 const t0 = performance.now()
@@ -242,7 +239,7 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
                 Logger.boot('BUILD_CONTENT', `${activeView} em ${(performance.now() - t0).toFixed(1)}ms, ${data.rows.length} rows`)
                 if (!cancelled) {
                     playerManager.init()
-                    if (data.rows.length > 0) contentCache.current[activeView] = data
+                    contentCache.current[activeView] = data
                     setContent(data)
                     setIsLoadingContent(false)
                     setContentRow(contentRowPerView.current[activeView] ?? 0)
@@ -254,6 +251,7 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
                     setHeroSlides(buildHeroSlidesFromData(data, activeView))
                 }
             } finally {
+                // ★ GARANTE que a TV nunca fique travada esperando o fim do load
                 loadingObserver.unlock()
             }
         }
@@ -451,9 +449,7 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
 
     // Quando expand colapsa direto (sem PlayerScreen), também re-foca na grid
     useEffect(() => {
-        let mounted = false
         const unsub = expandManager.subscribe((state) => {
-            if (!mounted) { mounted = true; return } // ignora disparo inicial do subscribe
             if (state === 'idle') {
                 setFocusZone('content')
                 setScrollTick(t => t + 1)
@@ -569,16 +565,8 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
         if (e.key === 'Enter' || e.keyCode === 13) {
             e.preventDefault()
             if (zone === 'sidebar') {
-                const SIDEBAR_VIEWS: (DashboardView | 'manage-list' | null)[] = ['home', 'movies', 'series', 'live', 'copa', 'manage-list', null]
-                const view = SIDEBAR_VIEWS[sidebarRef.current]
-                if (view === 'manage-list') {
-                    // Remove lista e volta para setup
-                    localStorage.removeItem('ziiiTV_lastCode')
-                    window.location.reload()
-                    return
-                }
-                if (view) setActiveView(view as DashboardView)
-                setFocusZone('topbar')
+                // Apenas placeholder visual para Enterprise settings por enquanto
+                // Ao apertar enter, não muda navegação, mas podemos piscar a UI.
                 return
             }
             if (zone === 'topbar') {
@@ -749,8 +737,8 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
         }}>
 
 
-            {/* ── SIDEBAR — oculta sem canais, pois não há conteuúdo ───── */}
-            {hasChannels && <HomeSidebar focusZone={focusZone} sidebarIdx={sidebarIdx} accent={ACCENT} />}
+            {/* ── SIDEBAR ─── */}
+            <HomeSidebar focusZone={focusZone} sidebarIdx={sidebarIdx} accent={ACCENT} />
 
             {/* ── CORPO PRINCIPAL (tela inteira) ───────────────────────────────── */}
             <div style={{
@@ -758,8 +746,7 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
                 overflow: 'hidden',
             }}>
                 {/* ── TOPBAR ───────────────────────────────────────────────────────── */}
-                <HomeTopBar focusZone={focusZone} topbarIdx={topbarIdx} activeView={activeView} accent={ACCENT} links={availableTopbarLinks} />
-
+                <HomeTopBar focusZone={focusZone} topbarIdx={topbarIdx} activeView={activeView} accent={ACCENT} />
 
                 {/* ── BANNER ───────────────────────────────────────────────────────── */}
                 {heroSlides[0] && (
@@ -767,7 +754,7 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
                 )}
 
                 {/* ROWS — scroll próprio, por cima do background */}
-                {rows.length === 0 && !isLoadingContent && activeView !== 'copa' && focusZone === 'content' ? (
+                {rows.length === 0 ? (
                     <div style={{
                         position: 'absolute',
                         top: '50%', left: '50%',
@@ -1392,7 +1379,7 @@ export default function HomeScreen({ groups, onPlay, onBack, initialView }: Prop
                 )}
 
                 {/* SKELETON SHIMMER LOADING */}
-                {isLoadingContent && focusZone === 'content' && (
+                {isLoadingContent && (
                     <div style={{
                         position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
                         background: 'rgba(0,0,0,0.92)', zIndex: 80, padding: '120px 80px 0',

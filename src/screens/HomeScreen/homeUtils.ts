@@ -30,9 +30,7 @@ export function saveNavState(data: {
   contentCols: number[]
   activeView: string
 }): void {
-  // Não persiste o activeView — o app sempre inicia em 'home'
-  const { activeView: _ignored, ...rest } = data
-  try { localStorage.setItem(STATE_KEY, JSON.stringify(rest)) } catch (_) {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify(data)) } catch (_) {}
 }
 
 export function loadNavState(): {

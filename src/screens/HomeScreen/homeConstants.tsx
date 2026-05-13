@@ -8,7 +8,7 @@ export const FOCUS_DURATION = 0
 export const FOCUS_EASING = 'linear'
 export const UNFOCUS_OPACITY = 0.85
 
-export const SIDEBAR_ICONS: Array<{ svg: React.ReactNode; label: string; action?: string }> = [
+export const SIDEBAR_ICONS: Array<{ svg: React.ReactNode; label: string }> = [
   {
     svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>,
     label: 'Início',
@@ -30,11 +30,6 @@ export const SIDEBAR_ICONS: Array<{ svg: React.ReactNode; label: string; action?
     label: 'COPA',
   },
   {
-    svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>,
-    label: 'Gerenciar Lista',
-    action: 'manage-list',
-  },
-  {
     svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></svg>,
     label: 'Perfil',
   },
@@ -47,19 +42,6 @@ export const TOPBAR_LINKS: Array<{ label: string; view: DashboardView }> = [
   { label: 'tv ao vivo', view: 'live' },
   { label: '🏆 copa', view: 'copa' },
 ]
-
-// Links disponíveis conforme existência de canais na lista
-export function getAvailableTopbarLinks(hasChannels: boolean): Array<{ label: string; view: DashboardView }> {
-  if (hasChannels) return TOPBAR_LINKS
-  // Sem lista: só Copa
-  return [{ label: '🏆 copa 2026', view: 'copa' }]
-}
-
-// Sidebar sempre completo — app é IPTV player puro, sem lista vai para SetupScreen
-export function getAvailableSidebarIcons(): Array<{ svg: React.ReactNode; label: string; action?: string }> {
-  return SIDEBAR_ICONS
-}
-
 
 export const CATEGORY_ICONS: Record<string, { emoji: string; color: string }> = {
   filmes:        { emoji: '🎬', color: '#a78bfa' },
