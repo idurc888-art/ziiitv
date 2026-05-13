@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { type Channel } from '../../types/channel'
 import { initPlayer, loadStream, destroyPlayer, selectPlayerBackend } from '../../services/playerService'

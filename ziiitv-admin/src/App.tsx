@@ -18,6 +18,7 @@ import { WatchHistory } from './pages/WatchHistory'
 import { UploadPlaylist } from './pages/UploadPlaylist'
 import { ChannelDetail } from './pages/ChannelDetail'
 import { EnrichQueue } from './pages/EnrichQueue'
+import { LinkPage } from './pages/LinkPage'
 
 export function App() {
   const initialize = useAuthStore((s) => s.initialize)
@@ -42,6 +43,7 @@ export function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
+          <Route path="/link" element={<LinkPage />} />
           
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>

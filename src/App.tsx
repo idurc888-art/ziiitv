@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, lazy, Suspense } from 'react'
+import React, { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { useChannelsStore } from './store/channelsStore'
 import { keyboardMaestro } from './services/keyboardManager'
 import { expandManager } from './services/expandManager'
@@ -6,24 +6,33 @@ import { AuthService } from './services/authService'
 import { Logger } from './services/LoggerService'
 import { transitionStore } from './services/transitionStore'
 import { playerManager } from './services/PlayerManager'
+import { getTvSession } from './services/pairingService'
 
 // Lazy load das telas pesadas
-const DebugOverlay = lazy(() => import('./components/DebugOverlay'))
-const PlayerScreen = lazy(() => import('./screens/PlayerScreen/PlayerScreen'))
-const SplashScreen = lazy(() => import('./screens/SplashScreen/SplashScreen'))
-const ProfileScreen = lazy(() => import('./screens/ProfileScreen/ProfileScreen'))
-const HomeScreen = lazy(() => import('./screens/HomeScreen/HomeScreen'))
-const CodeEntryScreen = lazy(() => import('./screens/CodeEntryScreen/CodeEntryScreen'))
+const DebugOverlay       = lazy(() => import('./components/DebugOverlay'))
+const PlayerScreen       = lazy(() => import('./screens/PlayerScreen/PlayerScreen'))
+const SplashScreen       = lazy(() => import('./screens/SplashScreen/SplashScreen'))
+const ProfileScreen      = lazy(() => import('./screens/ProfileScreen/ProfileScreen'))
+const HomeScreen         = lazy(() => import('./screens/HomeScreen/HomeScreen'))
+const CodeEntryScreen    = lazy(() => import('./screens/CodeEntryScreen/CodeEntryScreen'))
+const SetupScreen        = lazy(() => import('./screens/SetupScreen/SetupScreen'))
 const SeriesDetailScreen = lazy(() => import('./screens/SeriesDetailScreen/SeriesDetailScreen'))
-const TransitionOverlay = lazy(() => import('./components/TransitionOverlay'))
-const FullscreenOverlay = lazy(() => import('./components/FullscreenOverlay'))
+const TransitionOverlay  = lazy(() => import('./components/TransitionOverlay'))
+const FullscreenOverlay  = lazy(() => import('./components/FullscreenOverlay'))
 
-type AppScreen = 'splash' | 'profiles' | 'code-entry' | 'home'
+type AppScreen = 'splash' | 'setup' | 'profiles' | 'code-entry' | 'home'
+
+function hasStoredPlaylist(): boolean {
+  try {
+    return !!(localStorage.getItem('ziiiTV_lastUrl') || localStorage.getItem('ziiiTV_lastCode'))
+  } catch (_) { return false }
+}
 
 const SCREEN_KEY = 'ziiiTV_appScreen'
 
 export default function App() {
   const normalizedGroups  = useChannelsStore(s => s.normalizedGroups)
+  const loadFromUrl       = useChannelsStore(s => s.loadFromUrl)
   const loadFromCode      = useChannelsStore(s => s.loadFromCode)
   const currentChannel    = useChannelsStore(s => s.currentChannel)
   const setCurrentChannel = useChannelsStore(s => s.setCurrentChannel)
@@ -106,14 +115,18 @@ export default function App() {
   useEffect(() => {
     const tStart = performance.now()
     const savedCode = localStorage.getItem('ziiiTV_lastCode')
+    const savedUrl  = localStorage.getItem('ziiiTV_lastUrl')
 
-    // Só carrega automaticamente se tiver código salvo
-    const loadPromise = savedCode 
-      ? loadFromCode(savedCode).catch((err) => {
-          console.warn('[Boot] Erro ao carregar código salvo:', err)
-          return Promise.resolve() // Não bloqueia o boot
-        })
-      : Promise.resolve() // Não carrega nada, espera usuário digitar código
+    const loadPromise: Promise<void> = savedCode
+      ? loadFromCode(savedCode).catch(() => Promise.resolve())
+      : savedUrl
+        ? loadFromUrl(savedUrl).catch(() => Promise.resolve())
+        : getTvSession().then(session => {
+            if (session?.playlist_url) {
+              try { localStorage.setItem('ziiiTV_lastUrl', session.playlist_url) } catch(_) {}
+              return loadFromUrl(session.playlist_url).catch(() => Promise.resolve())
+            }
+          }).catch(() => Promise.resolve()) as Promise<void>
 
     Promise.all([
       AuthService.checkUserAuth(),
@@ -173,7 +186,35 @@ export default function App() {
         {appScreen === 'splash' ? (
           <>
             {showDebug && <DebugOverlay />}
-            <SplashScreen onDone={() => setAppScreen('profiles')} />
+            <SplashScreen onDone={() => {
+              if (!hasStoredPlaylist()) {
+                setAppScreen('setup')
+              } else {
+                const lastCode = localStorage.getItem('ziiiTV_lastCode')
+                const lastUrl  = localStorage.getItem('ziiiTV_lastUrl')
+                if (lastCode) loadFromCode(lastCode).catch(() => {})
+                else if (lastUrl) loadFromUrl(lastUrl).catch(() => {})
+                setAppScreen('profiles')
+              }
+            }} />
+          </>
+        ) : appScreen === 'setup' ? (
+          <>
+            {showDebug && <DebugOverlay />}
+            <SetupScreen onComplete={(data: any) => {
+              let resolvedUrl = ''
+              if (data.playlist_type === 'xtream' && data.xtream_host && data.xtream_user && data.xtream_pass) {
+                resolvedUrl = `${data.xtream_host}/get.php?username=${data.xtream_user}&password=${data.xtream_pass}&type=m3u_plus&output=ts`
+              } else if (data.playlist_url) {
+                resolvedUrl = data.playlist_url
+              }
+              if (resolvedUrl) {
+                // Persiste imediatamente — garante que próximo boot não volta ao SetupScreen
+                try { localStorage.setItem('ziiiTV_lastUrl', resolvedUrl) } catch(_) {}
+                loadFromUrl(resolvedUrl).catch(() => {})
+              }
+              setAppScreen('profiles')
+            }} />
           </>
         ) : appScreen === 'profiles' ? (
           <>

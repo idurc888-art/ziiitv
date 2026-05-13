@@ -12,7 +12,7 @@
  * 5. D-pad controla apenas `activeIndex` — CSS cuida da transição
  */
 
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import type { Channel } from '../../types/channel'
 import { QUALITY_BADGE_COLOR } from '../../types/channel'
 import { keyboardMaestro } from '../../services/keyboardManager'

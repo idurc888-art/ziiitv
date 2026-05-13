@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { Channel } from '../../types/channel';
 import { keyboardMaestro } from '../../services/keyboardManager';
 import { avplayCardManager } from '../../services/avplayCardManager';

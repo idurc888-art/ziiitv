@@ -116,6 +116,29 @@ export default function HomeScreen({ groups, onPlay, onBack }: Props) {
         return () => { unsub() }
     }, [])
 
+    // ─── Alien peek: aparece 3min a cada 15min enquanto em fullscreen ─────
+    const [alienPeekVisible, setAlienPeekVisible] = useState(false)
+    useEffect(() => {
+        if (homeVisible) { setAlienPeekVisible(false); return }
+        let hideTimer: ReturnType<typeof setTimeout>
+        let cycleInterval: ReturnType<typeof setInterval>
+        const doShow = () => {
+            setAlienPeekVisible(true)
+            clearTimeout(hideTimer)
+            hideTimer = setTimeout(() => setAlienPeekVisible(false), 3 * 60 * 1000)
+        }
+        const firstTimer = setTimeout(() => {
+            doShow()
+            cycleInterval = setInterval(doShow, 18 * 60 * 1000)
+        }, 15 * 60 * 1000)
+        return () => {
+            clearTimeout(firstTimer)
+            clearTimeout(hideTimer)
+            clearInterval(cycleInterval)
+            setAlienPeekVisible(false)
+        }
+    }, [homeVisible])
+
     // ─── Block Rendering Progressivo (Tizen-safe) ──────────────────────
     // Bloco 1: Hero + primeiras 3 rows (instantâneo)
     // Bloco 2: Rows 4-8 (após 500ms de idle)
@@ -587,15 +610,11 @@ export default function HomeScreen({ groups, onPlay, onBack }: Props) {
                     } else {
                         const ch = row.channels[cols[rw]]
                         if (ch) {
-                            // Se o PlayerManager está tocando, dispara expansão fullscreen diretamente
+                            // Autoplay preview ativo → entra no player original (para o preview, abre PlayerScreen)
                             if (playerManager.isPlaying()) {
-                                playerManager.expandToFullscreen()
-                                expandManager.triggerExpand(ch, { x: 0, y: 0, w: 1920, h: 1080 }, 'avplay-global-preview', () => {
-                                    playerManager.collapseToCard()
-                                    expandManager.markCollapsing()
-                                    setTimeout(() => expandManager.markIdle(), 50)
-                                })
-                                expandManager.markFullscreen()
+                                playerManager.cancelRequest()
+                                recordPlay(ch.name, ch.group)
+                                handlePlay(ch)
                                 return
                             }
                             // Filme/série sem preview → abre Detail. Live TV → play direto.
@@ -1499,18 +1518,21 @@ export default function HomeScreen({ groups, onPlay, onBack }: Props) {
             )}
         </div>
 
-        {/* Alien — sempre visível no canto superior esquerdo */}
+        {/* Alien — fora do div homeVisible para controle independente */}
+        {/* Em modo normal: posição reage ao focusZone (sidebar aberta/fechada) */}
+        {/* Em fullscreen: some; reaparece 3min a cada 15min como lembrete de marca */}
         <img
             src="./alien-peek.png"
             style={{
                 position: 'fixed',
-                top: focusZone === 'sidebar' ? -129 : -86,
-                left: focusZone === 'sidebar' ? 94 : -187,
-                width: focusZone === 'sidebar' ? 454 : 390,
-                height: focusZone === 'sidebar' ? 454 : 390,
+                top:    homeVisible ? (focusZone === 'sidebar' ? -129 : -86) : -86,
+                left:   homeVisible ? (focusZone === 'sidebar' ? 94   : -187) : -187,
+                width:  homeVisible ? (focusZone === 'sidebar' ? 454  : 390)  : 390,
+                height: homeVisible ? (focusZone === 'sidebar' ? 454  : 390)  : 390,
                 zIndex: 9999,
                 pointerEvents: 'none',
-                transition: 'all 300ms cubic-bezier(0.2, 0, 0, 1)',
+                opacity: homeVisible ? 1 : (alienPeekVisible ? 0.85 : 0),
+                transition: 'opacity 600ms ease, top 300ms cubic-bezier(0.2,0,0,1), left 300ms cubic-bezier(0.2,0,0,1), width 300ms cubic-bezier(0.2,0,0,1), height 300ms cubic-bezier(0.2,0,0,1)',
                 transform: 'translate3d(0,0,0)',
             }}
         />

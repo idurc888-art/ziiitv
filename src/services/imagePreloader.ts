@@ -59,32 +59,35 @@ export const preloadCritical = async (urls: string[]): Promise<void> => {
 export const preloadIdle = (urls: string[]): void => {
   const queue = urls.filter(u => u && u.trim() !== '')
   if (queue.length === 0) return
-  
-  // @ts-ignore
-  if (window.DEBUG) console.log(`[PRELOAD IDLE] Enfileiradas ${queue.length} imagens em background.`)
-  
   let i = 0
-  
   const processNext = () => {
-    // Processa o máximo de imagens possíveis na janela de inatividade do navegador,
-    // mas com um sleep interno manual caso a TV seja muito rápida (para não estourar banda)
     if (i < queue.length) {
-      const url = queue[i]
-      i++
-      
+      const url = queue[i++]
       const img = new Image()
-      img.onload = () => {
-        setTimeout(() => requestIdleCallbackShim(processNext), 50)
-      }
-      img.onerror = () => {
-        setTimeout(() => requestIdleCallbackShim(processNext), 50)
-      }
+      img.onload = () => { setTimeout(() => requestIdleCallbackShim(processNext), 50) }
+      img.onerror = () => { setTimeout(() => requestIdleCallbackShim(processNext), 50) }
       img.src = url
-    } else {
-      // @ts-ignore
-      if (window.DEBUG) console.log(`[PRELOAD IDLE] Concluído.`)
     }
   }
-  
   requestIdleCallbackShim(processNext)
+}
+
+/**
+ * Carrega imagens em lotes progressivos — cria sensação de "sempre carregando".
+ * Cada lote de N imagens aparece junto, com pausa entre lotes.
+ * Substitui o preloadCritical (que bloqueava a UI) + preloadIdle (muito lento).
+ */
+export const preloadBatched = (urls: string[], batchSize = 10, batchDelay = 150): void => {
+  const queue = urls.filter(u => u && u.trim() !== '')
+  if (queue.length === 0) return
+  let index = 0
+  const loadBatch = () => {
+    const batch = queue.slice(index, index + batchSize)
+    if (!batch.length) return
+    batch.forEach(url => { const img = new Image(); img.src = url })
+    index += batchSize
+    if (index < queue.length) setTimeout(loadBatch, batchDelay)
+  }
+  // Pequeno delay inicial para não competir com o primeiro render do React
+  setTimeout(() => requestIdleCallbackShim(loadBatch), 100)
 }

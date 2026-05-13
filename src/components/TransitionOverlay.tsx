@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { transitionStore } from '../services/transitionStore'
 
 export default function TransitionOverlay() {

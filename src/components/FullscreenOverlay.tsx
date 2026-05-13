@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { expandManager, type ExpandState } from '../services/expandManager'
 import { keyboardMaestro } from '../services/keyboardManager'
 import type { Channel } from '../types/channel'

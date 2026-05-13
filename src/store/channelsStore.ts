@@ -131,13 +131,10 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
       ContentCatalog.init(normalizedGroups)
 
       // Import image preloader (Dynamic to avoid circular deps if any)
-      const { preloadCritical, preloadIdle } = await import('../services/imagePreloader')
+      const { preloadBatched } = await import('../services/imagePreloader')
 
-      // Extrai imagens para o pipeline de Preload
-      const allUrls = new Set<string>()
-      const criticalUrls = new Set<string>()
-      
-      let imgIndex = 0
+      // Coleta todas as URLs de imagens
+      const allUrls: string[] = []
       for (const group of Object.values(normalizedGroups)) {
         for (const ch of group) {
            const t = (ch as any).canonical || ch.tmdb
@@ -145,41 +142,29 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
            const p = rawP ? (rawP.startsWith('http') ? rawP : `https://image.tmdb.org/t/p/w342${rawP}`) : ch.logo
            const rawB = t?.backdrop
            const b = rawB ? (rawB.startsWith('http') ? rawB : `https://image.tmdb.org/t/p/w780${rawB}`) : null
-           
-           if (p) {
-             allUrls.add(p)
-             if (imgIndex < 6) criticalUrls.add(p)
-           }
-           if (b) {
-             allUrls.add(b)
-             if (imgIndex < 2) criticalUrls.add(b) // Only top 2 backdrops as critical
-           }
-           imgIndex++
+           if (p) allUrls.push(p)
+           if (b) allUrls.push(b)
         }
       }
 
-      set({ progress: 90, progressMessage: 'Pré-carregando imagens principais...' })
-      await preloadCritical(Array.from(criticalUrls))
-      
       // Persiste a URL para a próxima sessão
       localStorage.setItem('ziiiTV_lastUrl', url)
-      
-      // Finaliza o estado com sucesso (libera SplashScreen)
-      set({ 
+
+      // Libera UI IMEDIATAMENTE — imagens carregam em batches progressivos em paralelo
+      set({
         matchedChannels: matched,
         unmatchedChannels: unmatched,
         normalizedGroups,
-        status: 'done', 
+        status: 'done',
         bootStatus: 'warm',
-        progress: 100, 
+        progress: 100,
         progressMessage: 'Concluído',
         error: null
       })
       Logger.boot('M3U_TOTAL', `Match de ${matched.length} canais concluído em ${Logger.getTTI().toFixed(0)}ms`)
-      
-      // Fire-and-forget: pre-load do restante massivo sem bloquear
-      const idleUrls = Array.from(allUrls).filter(u => !criticalUrls.has(u))
-      preloadIdle(idleUrls)
+
+      // Batches de 10 imagens a cada 150ms — usuário vê thumbs aparecendo progressivamente
+      preloadBatched(allUrls)
 
       // TMDB warmup em background (NÃO bloqueante) — só para unmatched
 

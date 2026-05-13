@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import React, { useEffect, useRef, useState, useMemo } from 'react'
 import type { Channel } from '../../types/channel'
 import { getEpisodeProgress, getLastEpisode, markEpisodeWatched } from '../../services/historyService'
 
