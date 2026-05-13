@@ -7,6 +7,7 @@ import { Logger } from './services/LoggerService'
 import { transitionStore } from './services/transitionStore'
 import { playerManager } from './services/PlayerManager'
 import { getTvSession } from './services/pairingService'
+import type { PairToken } from './services/pairingService'
 
 // Lazy load das telas pesadas
 const DebugOverlay       = lazy(() => import('./components/DebugOverlay'))
@@ -19,6 +20,9 @@ const SetupScreen        = lazy(() => import('./screens/SetupScreen/SetupScreen'
 const SeriesDetailScreen = lazy(() => import('./screens/SeriesDetailScreen/SeriesDetailScreen'))
 const TransitionOverlay  = lazy(() => import('./components/TransitionOverlay'))
 const FullscreenOverlay  = lazy(() => import('./components/FullscreenOverlay'))
+
+// Pré-carrega HomeScreen enquanto o usuário está na splash/profiles — elimina flash preto
+import('./screens/HomeScreen/HomeScreen')
 
 type AppScreen = 'splash' | 'setup' | 'profiles' | 'code-entry' | 'home'
 
@@ -222,6 +226,18 @@ export default function App() {
             <ProfileScreen
               onSelect={() => setAppScreen('home')}
               onEnterCode={() => { setCodeError(null); setAppScreen('code-entry') }}
+              onPaired={(data: PairToken) => {
+                let resolvedUrl = ''
+                if (data.playlist_type === 'xtream' && data.xtream_host && data.xtream_user && data.xtream_pass) {
+                  resolvedUrl = `${data.xtream_host}/get.php?username=${data.xtream_user}&password=${data.xtream_pass}&type=m3u_plus&output=ts`
+                } else if (data.playlist_url) {
+                  resolvedUrl = data.playlist_url
+                }
+                if (resolvedUrl) {
+                  try { localStorage.setItem('ziiiTV_lastUrl', resolvedUrl) } catch(_) {}
+                  loadFromUrl(resolvedUrl).catch(() => {})
+                }
+              }}
             />
           </>
         ) : appScreen === 'code-entry' ? (
