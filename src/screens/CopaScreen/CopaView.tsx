@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { copaService, type CopaMatch, type CopaGroup, type TopScorer } from '../../services/copaService'
 import { COPA_WATCH_CHANNELS, channelEmbedUrl, type CopaChannel } from '../../services/copaChannels'
 import { MOCK_MATCHES, MOCK_STANDINGS, MOCK_TOP_SCORERS } from '../../data/copaMock'

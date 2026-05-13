@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { CopaMatch } from '../../services/copaService'
 import { COPA_WATCH_CHANNELS, channelEmbedUrl, type CopaChannel } from '../../services/copaChannels'
 
