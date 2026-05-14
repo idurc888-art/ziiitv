@@ -26,10 +26,13 @@ import('./screens/HomeScreen/HomeScreen')
 
 type AppScreen = 'splash' | 'setup' | 'profiles' | 'code-entry' | 'home'
 
-function hasStoredPlaylist(): boolean {
+function getStoredPlaylist() {
   try {
-    return !!(localStorage.getItem('ziiiTV_lastUrl') || localStorage.getItem('ziiiTV_lastCode'))
-  } catch (_) { return false }
+    return {
+      code: localStorage.getItem('ziiiTV_lastCode'),
+      url:  localStorage.getItem('ziiiTV_lastUrl'),
+    }
+  } catch (_) { return { code: null, url: null } }
 }
 
 const SCREEN_KEY = 'ziiiTV_appScreen'
@@ -191,15 +194,11 @@ export default function App() {
           <>
             {showDebug && <DebugOverlay />}
             <SplashScreen onDone={() => {
-              if (!hasStoredPlaylist()) {
-                setAppScreen('setup')
-              } else {
-                const lastCode = localStorage.getItem('ziiiTV_lastCode')
-                const lastUrl  = localStorage.getItem('ziiiTV_lastUrl')
-                if (lastCode) loadFromCode(lastCode).catch(() => {})
-                else if (lastUrl) loadFromUrl(lastUrl).catch(() => {})
-                setAppScreen('profiles')
-              }
+              // ProfileScreen é sempre a primeira tela — ela exibe QR se não tem lista
+              const { code, url } = getStoredPlaylist()
+              if (code) loadFromCode(code).catch(() => {})
+              else if (url) loadFromUrl(url).catch(() => {})
+              setAppScreen('profiles')
             }} />
           </>
         ) : appScreen === 'setup' ? (

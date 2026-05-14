@@ -3,6 +3,8 @@ import QRCode from 'qrcode'
 import { useChannelsStore } from '../../store/channelsStore'
 import { keyboardMaestro } from '../../services/keyboardManager'
 import { usePairing } from '../../hooks/usePairing'
+import { getDeviceId } from '../../services/pairingService'
+import { SUPABASE_URL, ANON_KEY } from '../../services/supabaseClient'
 import type { PairToken } from '../../services/pairingService'
 
 const USERS = [
@@ -51,11 +53,22 @@ export default function ProfileScreen({ onSelect, onEnterCode, onPaired }: Props
     catch (_) { return false }
   })
 
-  function handleDeleteList() {
+  async function handleDeleteList() {
+    // Chama Edge Function para deletar tudo do banco (channels, playlists, tv_sessions, pair_tokens)
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/delete-device-data`, {
+        method: 'POST',
+        headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: getDeviceId() }),
+      })
+    } catch (_) {}
+
+    // Limpa localStorage
     try {
       localStorage.removeItem('ziiiTV_lastUrl')
       localStorage.removeItem('ziiiTV_lastCode')
     } catch (_) {}
+
     setHasPlaylist(false)
     window.location.reload()
   }
