@@ -30,6 +30,7 @@
   <tizen:profile name="tv"/>
   <name>ziiiTV</name>
   <icon src="icon.png"/>
+  <icon src="icon_large.png" width="512" height="512"/>
   <access origin="*" subdomains="true"/>
 
   <tizen:setting screen-orientation="landscape"
