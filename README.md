@@ -480,3 +480,49 @@ LATERAL_TOP_OFFSET = (isRowFocused ? TITLE_AREA : TOP_PAD) + Math.round((CENTRAL
 ### 🟢 Baixa Prioridade
 7. **Virtualização de listas** — performance com 100+ rows
 8. **Configuração manual de qualidade** — usuário força SD/HD/4K no menu settings
+
+
+---
+
+## Status Atual (14/05/2026) ✅ COPA + QR PAIRING IMPLEMENTADOS
+
+## Estrutura de Repositórios
+- **App TV:** `/home/carneiro888/Documentos/zikualdo/ziiiTV` → `github.com/idurc888-art/ziiitv`
+- **Admin:** `/home/carneiro888/Documentos/zikualdo/ziiitv-admin` → `github.com/idurc888-art/ziiitv-admin` → `ziiitv-admin.vercel.app`
+
+## ✅ Copa do Mundo 2026
+- Banner `public/copa-bg.jpg` (Brasil x Marrocos, pedra texturizada)
+- Imagem da taça `public/copa-trophy.jpg` como fundo dos cards
+- Emblemas 192px com glow colorido por horário (azul/âmbar/rosa/roxo)
+- Row de grupos A-L + 7 rows de dias (11-17/Jun) com jogos reais
+- API SportAPI via Edge Function `copa-proxy` no Supabase (RAPIDAPI_KEY como secret)
+- Fallback para mock `src/data/copaMock.ts`
+
+## ✅ QR Pairing
+- Tabelas Supabase: `pair_tokens` + `tv_sessions`
+- `pairingService.ts` + `tvSessionService.ts` + `usePairing.ts`
+- `SetupScreen.tsx` — tela QR na TV
+- LinkPage: `ziiitv-admin.vercel.app/link?token=XXXX`
+- Fluxo: sem lista → SetupScreen → QR → celular cola URL → TV carrega
+
+## ✅ Sidebar
+- Item "Gerenciar Lista" remove `ziiiTV_lastCode` e recarrega → volta ao SetupScreen
+
+## ⚠️ Lixo identificado (não removido ainda)
+- Componentes mortos: `HeroCarousel/`, `HeroBanner/`, `TopMoviesBanner/`, `HeroTrailerBackground/`
+- Serviços mortos: `shakaService.ts`, `storageTest.ts`, `playerService.ts`, `listStorage.ts`
+- Hooks mortos: `useHeroTrailer.ts`, `useStreamPreview.ts`, `useCardPreview.ts`
+- Screen morta: `SettingsScreen/`
+- Assets do template: `src/assets/hero.png`, `react.svg`, `vite.svg`
+- `.vite/deps/` não deveria estar no git
+
+## Deploy TV
+```bash
+# IP atual da TV: 10.0.0.101
+npm run build:force && \
+cp public/config.xml dist/ && cp public/icon.png dist/ && \
+cd dist && rm -f ziiiTV.wgt && \
+~/tizen-studio/tools/ide/bin/tizen package -t wgt -s zi01 -o . -- . && \
+~/tizen-studio/tools/sdb connect 10.0.0.101:26101 && \
+~/tizen-studio/tools/ide/bin/tizen install -n ziiiTV.wgt -t UN50RU7100GXZD
+```

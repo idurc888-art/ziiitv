@@ -1,6 +1,7 @@
 node_modules/
 dist/
 backup/
+.vite/
 *.wgt
 .DS_Store
 .manifest.tmp

@@ -44,17 +44,16 @@ import DetailOverlay from './DetailOverlay'
 // VW is now a reactive state inside the component — see `vw` below
 
 export default function HomeScreen({ groups, onPlay, onBack }: Props) {
-    const saved = useRef(loadNavState()).current
     const [focusZone, setFocusZone] = useState<FocusZone>('topbar')
     const [sidebarIdx, setSidebarIdx] = useState(0)
     const [topbarIdx, setTopbarIdx] = useState(0)
-    const [contentRow, setContentRow] = useState(saved?.contentRow ?? 0)
+    const [contentRow, setContentRow] = useState(0)
     // Posição de scroll por aba — persiste dentro da sessão ao trocar de view
-    const contentRowPerView = useRef<Partial<Record<DashboardView, number>>>({ home: saved?.contentRow ?? 0 })
+    const contentRowPerView = useRef<Partial<Record<DashboardView, number>>>({ home: 0 })
     const [contentCols, setContentCols] = useState<number[]>([])
     const [showExit, setShowExit] = useState(false)
     const [exitFocus, setExitFocus] = useState(0)
-    const [activeView, setActiveView] = useState<DashboardView>((saved?.activeView as DashboardView) || 'home')
+    const [activeView, setActiveView] = useState<DashboardView>('home')
     const [isLoadingContent, setIsLoadingContent] = useState(false)
     const [content, setContent] = useState<ScreenContent | null>(null)
     const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(mockHeroSlides)
