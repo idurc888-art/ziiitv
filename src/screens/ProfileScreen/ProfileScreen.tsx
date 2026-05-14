@@ -75,23 +75,35 @@ export default function ProfileScreen({ onSelect, onEnterCode, onPaired }: Props
     setTimeout(() => onSelect(USERS[idx].id), 500)
   }
 
+  // focused === -1 → delete button no painel direito
+  const focusedIsDelete = focused === -1
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (selectingRef.current) return
       if (e.key === 'ArrowDown' || e.keyCode === 40) {
         e.preventDefault()
+        if (focusedRef.current === -1) return // já no delete, não desce mais
         setFocused(f => Math.min(f + 1, totalItems - 1))
       } else if (e.key === 'ArrowUp' || e.keyCode === 38) {
         e.preventDefault()
+        if (focusedRef.current === -1) { setFocused(0); return }
         setFocused(f => Math.max(f - 1, 0))
+      } else if (e.key === 'ArrowRight' || e.keyCode === 39) {
+        e.preventDefault()
+        if (hasPlaylist && focusedRef.current !== -1) setFocused(-1)
+      } else if (e.key === 'ArrowLeft' || e.keyCode === 37) {
+        e.preventDefault()
+        if (focusedRef.current === -1) setFocused(0)
       } else if (e.key === 'Enter' || e.keyCode === 13) {
         e.preventDefault()
+        if (focusedRef.current === -1) { handleDeleteList(); return }
         handleSelect(focusedRef.current)
       }
     }
     keyboardMaestro.subscribe('profiles:main', onKey)
     return () => keyboardMaestro.unsubscribe('profiles:main')
-  }, [totalItems])
+  }, [totalItems, hasPlaylist])
 
   return (
     <div style={{
@@ -359,28 +371,27 @@ export default function ProfileScreen({ onSelect, onEnterCode, onPaired }: Props
             </div>
           </div>
         )}
-      </div>
 
-      {/* Botão deletar lista — só aparece quando há lista ativa */}
-      {hasPlaylist && (
-        <button
-          onClick={handleDeleteList}
-          style={{
-            marginTop: 16,
-            background: 'rgba(255,50,50,0.08)',
-            border: '1px solid rgba(255,50,50,0.25)',
-            borderRadius: 10, padding: '10px 20px',
-            fontSize: 13, fontWeight: 600,
-            color: 'rgba(255,100,100,0.8)',
-            cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
-            transition: 'background 200ms',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,50,50,0.18)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,50,50,0.08)')}
-        >
-          🗑 Deletar lista
-        </button>
-      )}
+        {/* Botão deletar lista — dentro do painel direito, navegável pelo controle */}
+        {hasPlaylist && (
+          <button
+            onClick={handleDeleteList}
+            style={{
+              background: focusedIsDelete ? 'rgba(255,50,50,0.25)' : 'rgba(255,50,50,0.08)',
+              border: focusedIsDelete ? '2px solid rgba(255,80,80,0.7)' : '1px solid rgba(255,50,50,0.25)',
+              borderRadius: 10, padding: '10px 24px',
+              fontSize: 13, fontWeight: 600,
+              color: focusedIsDelete ? '#ff8080' : 'rgba(255,100,100,0.6)',
+              cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+              transition: 'all 150ms',
+              outline: 'none',
+              boxShadow: focusedIsDelete ? '0 0 0 2px rgba(255,80,80,0.3)' : 'none',
+            }}
+          >
+            🗑  Deletar lista
+          </button>
+        )}
+      </div>
 
       <style>{`
         @keyframes qr-spin { to { transform: rotate(360deg); } }
