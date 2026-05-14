@@ -46,10 +46,19 @@ export default function ProfileScreen({ onSelect, onEnterCode, onPaired }: Props
     }
   }, [pairState, pairData])
 
-  const hasPlaylist = (() => {
+  const [hasPlaylist, setHasPlaylist] = useState(() => {
     try { return !!(localStorage.getItem('ziiiTV_lastUrl') || localStorage.getItem('ziiiTV_lastCode')) }
     catch (_) { return false }
-  })()
+  })
+
+  function handleDeleteList() {
+    try {
+      localStorage.removeItem('ziiiTV_lastUrl')
+      localStorage.removeItem('ziiiTV_lastCode')
+    } catch (_) {}
+    setHasPlaylist(false)
+    window.location.reload()
+  }
 
   const min = Math.floor(secondsLeft / 60)
   const sec = secondsLeft % 60
@@ -351,6 +360,27 @@ export default function ProfileScreen({ onSelect, onEnterCode, onPaired }: Props
           </div>
         )}
       </div>
+
+      {/* Botão deletar lista — só aparece quando há lista ativa */}
+      {hasPlaylist && (
+        <button
+          onClick={handleDeleteList}
+          style={{
+            marginTop: 16,
+            background: 'rgba(255,50,50,0.08)',
+            border: '1px solid rgba(255,50,50,0.25)',
+            borderRadius: 10, padding: '10px 20px',
+            fontSize: 13, fontWeight: 600,
+            color: 'rgba(255,100,100,0.8)',
+            cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+            transition: 'background 200ms',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,50,50,0.18)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,50,50,0.08)')}
+        >
+          🗑 Deletar lista
+        </button>
+      )}
 
       <style>{`
         @keyframes qr-spin { to { transform: rotate(360deg); } }
