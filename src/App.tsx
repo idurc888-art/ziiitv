@@ -340,15 +340,15 @@ export default function App() {
                     document.body.focus()
                     return
                   }
-                  // Tenta shrink back para o card (retoma preview)
-                  const shrunk = playerManager.shrinkToCard()
+                  // Anima shrink de volta ao card e para o AVPlay imediatamente —
+                  // evita race condition: cleanup do useEffect chamaria avplayStop()
+                  // depois de playerManager.play() já ter aberto nova URL.
+                  playerManager.shrinkToCard()
                   if (shakaRef.current) {
                     try { shakaRef.current.destroy() } catch(_) {}
                     shakaRef.current = null
                   }
-                  if (!shrunk) {
-                    try { const av = (window as any).webapis?.avplay; if (av) av.stop() } catch(_) {}
-                  }
+                  try { const av = (window as any).webapis?.avplay; if (av) av.stop() } catch(_) {}
                   setCurrentChannel(null)
                   keyboardMaestro.setActiveView('main')
                   // Força re-scroll para a row focada após fechar o player
