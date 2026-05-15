@@ -1,6 +1,8 @@
 import * as db from './dbClient'
 import type { Channel } from '../types/channel'
 import type { CanonicalTitle } from '../data/catalog'
+import { cleanChannelName, slugify, normalizeStreams, detectQuality } from './streamNormalizer'
+import { CANONICAL_CATALOG } from '../data/catalog'
 
 export type MatchStatus = 'idle' | 'fetching' | 'parsing' | 'matching' | 'done' | 'error'
 
@@ -185,9 +187,6 @@ class CatalogMatcherClass {
 
   // ─── Main Thread: XHR + indexOf sem split() + yield a cada 3k linhas ────
   private async loadInMainThread(url: string): Promise<MatchResult> {
-    const { cleanChannelName, slugify, normalizeStreams, detectQuality } = await import('./streamNormalizer')
-    const { CANONICAL_CATALOG } = await import('../data/catalog')
-
     this.onProgress?.('fetching', 5, 'Conectando ao servidor...')
 
     // Índice O(1) do catálogo (~400 entradas — instantâneo)

@@ -8,6 +8,7 @@ import { UnmatchedCatalog } from '../services/unmatchedCatalog'
 import { Logger } from '../services/LoggerService'
 import * as db from '../services/dbClient'
 import { getChannelsByCode } from '../services/supabaseClient'
+import { preloadBatched } from '../services/imagePreloader'
 
 // Slugifica uma string para usar como chave (sem deps externas)
 function slugKey(s: string): string {
@@ -129,9 +130,6 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
       
       // Inicializa catálogo ANTES de atualizar estado React
       ContentCatalog.init(normalizedGroups)
-
-      // Import image preloader (Dynamic to avoid circular deps if any)
-      const { preloadBatched } = await import('../services/imagePreloader')
 
       // Coleta todas as URLs de imagens
       const allUrls: string[] = []
@@ -379,7 +377,6 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
       ContentCatalog.init(normalizedGroups)
 
       // Alimenta o CatalogMatcher para que contentSelector use byStreaming
-      const { CatalogMatcher } = await import('../services/catalogMatcher')
       CatalogMatcher.injectMatched(matched)
 
       localStorage.setItem('ziiiTV_lastCode', code)

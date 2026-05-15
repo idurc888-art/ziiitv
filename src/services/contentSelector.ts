@@ -7,6 +7,9 @@ import type { TMDBResult } from './tmdbService'
 import { ContentCatalog } from './contentCatalog'
 import type { UICategory } from './categoryMapper'
 import { getMostWatched, getGenreScores, getRecentlyWatched } from './historyService'
+import { CatalogMatcher } from './catalogMatcher'
+import { UnmatchedCatalog } from './unmatchedCatalog'
+import { enrichBatch } from './tmdbService'
 
 export type RowType = 'wide' | 'simple' | 'portrait' | 'grid'
 
@@ -390,7 +393,6 @@ async function backgroundEnrich(
     
     if (toEnrich.length === 0) return
     
-    const { enrichBatch } = await import('./tmdbService')
     const tmdbResults = await enrichBatch(toEnrich.slice(0, 20), 10, 300)
 
     for (const row of rows) {
@@ -422,7 +424,6 @@ export async function buildHomeContent(
   const t0 = performance.now()
 
   // ─── 1. Dados instantâneos do CatalogMatcher (já matchou durante splash) ───
-  const { CatalogMatcher } = await import('./catalogMatcher')
   const byStreaming = CatalogMatcher.getMatchedByStreaming()
   const hasMatcherData = Object.keys(byStreaming).length > 0
 
@@ -449,9 +450,6 @@ export async function buildHomeContent(
       return ch
     })
     .filter(Boolean) as Channel[]
-
-  // ─── 3. Renderização por Streaming (Filmes → Séries → Mixto) ───
-  const { UnmatchedCatalog } = await import('./unmatchedCatalog')
 
   // "Continuar Assistindo" só aparece com histórico real (sem fallback de catálogo)
   if (continueChannels.length > 0) {
@@ -723,7 +721,6 @@ function buildContinueRow(
 export async function buildFilmesContent(_groups: NormalizedGroups): Promise<ScreenContent> {
   ContentCatalog.resetUsed()
 
-  const { CatalogMatcher } = await import('./catalogMatcher')
   const byStreaming = CatalogMatcher.getMatchedByStreaming()
   const hasMatcherData = Object.keys(byStreaming).length > 0
 
@@ -768,7 +765,6 @@ export async function buildFilmesContent(_groups: NormalizedGroups): Promise<Scr
   const continueRow = buildContinueRow(_groups, 'movie')
 
   // ─── 3. Gêneros do UnmatchedCatalog (filmes da lista sem match TMDB) ───
-  const { UnmatchedCatalog } = await import('./unmatchedCatalog')
   const unmatchedGenreRows: Partial<ContentRow>[] = []
   for (const [key, { label: genreLabel, channels: genreChannels }] of UnmatchedCatalog.genreEntries()) {
     if (/leg/i.test(key)) continue // legendados já aparecem separado
@@ -807,7 +803,6 @@ export async function buildFilmesContent(_groups: NormalizedGroups): Promise<Scr
 export async function buildSeriesContent(_groups: NormalizedGroups): Promise<ScreenContent> {
   ContentCatalog.resetUsed()
 
-  const { CatalogMatcher } = await import('./catalogMatcher')
   const byStreaming = CatalogMatcher.getMatchedByStreaming()
   const hasMatcherData = Object.keys(byStreaming).length > 0
 
