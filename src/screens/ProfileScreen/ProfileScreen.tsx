@@ -224,6 +224,55 @@ export default function ProfileScreen({ onSelect, onEnterCode, onPaired }: Props
           )
         })}
 
+        {/* Opção: digitar código manualmente */}
+        {onEnterCode && (
+          <div
+            onClick={() => handleSelect(USERS.length)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 20,
+              padding: '14px 24px', borderRadius: 16, cursor: 'pointer',
+              marginTop: 8,
+              background: focused === USERS.length ? 'rgba(168,85,247,0.12)' : 'rgba(255,255,255,0.02)',
+              border: focused === USERS.length ? '2px solid rgba(168,85,247,0.7)' : '2px solid rgba(255,255,255,0.05)',
+              boxShadow: focused === USERS.length ? '0 0 30px rgba(168,85,247,0.2)' : 'none',
+              transform: focused === USERS.length ? 'translateX(8px)' : 'translateX(0)',
+              transition: 'all 250ms cubic-bezier(0.34,1.56,0.64,1)',
+            }}
+          >
+            <div style={{
+              width: 64, height: 64, borderRadius: 14, flexShrink: 0,
+              background: focused === USERS.length ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.04)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+            }}>
+              🔑
+            </div>
+            <div>
+              <div style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: 20, fontWeight: focused === USERS.length ? 700 : 400,
+                color: focused === USERS.length ? '#fff' : 'rgba(255,255,255,0.4)',
+                transition: 'all 200ms ease',
+              }}>
+                Digitar código
+              </div>
+              {focused === USERS.length && (
+                <div style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: 12, color: 'rgba(168,85,247,0.9)', letterSpacing: 2,
+                  textTransform: 'uppercase', marginTop: 2,
+                }}>
+                  pressione enter
+                </div>
+              )}
+            </div>
+            {focused === USERS.length && (
+              <div style={{ marginLeft: 'auto', color: 'rgba(168,85,247,0.9)', fontSize: 20, fontWeight: 900 }}>
+                →
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Loading indicator */}
         {!isReady && progress > 0 && (
           <div style={{
@@ -257,7 +306,7 @@ export default function ProfileScreen({ onSelect, onEnterCode, onPaired }: Props
           fontSize: 12, color: 'rgba(255,255,255,0.15)',
           letterSpacing: 2, textTransform: 'uppercase',
         }}>
-          ↑ ↓ navegar · enter selecionar
+          ↑ ↓ navegar · enter selecionar · → deletar lista
         </div>
       </div>
 
