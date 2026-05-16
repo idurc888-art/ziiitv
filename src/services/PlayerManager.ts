@@ -29,13 +29,6 @@ function getGoldenOffset(url: string): number {
   return 120000
 }
 
-function getStreamType(url: string): 'hls' | 'dash' | 'mp4' | 'ts' | 'unknown' {
-  if (url.includes('.m3u8')) return 'hls'
-  if (url.includes('.mpd'))  return 'dash'
-  if (url.includes('.mp4'))  return 'mp4'
-  if (url.includes('.ts'))   return 'ts'
-  return 'unknown'
-}
 
 class PlayerManager {
   private currentUrl: string | null = null
@@ -182,15 +175,11 @@ class PlayerManager {
     let isFirstFrameFired = false
     let lastTimeUpdate = 0
     const startMs = this.getStartMs()
-    const streamType = getStreamType(url)
 
-    // HLS: START_POSITION antes do prepare → sem seekTo depois
-    if (streamType === 'hls' && startMs > 0) {
+    if (startMs > 0) {
       try { av.setStreamingProperty('START_POSITION', String(startMs)) } catch (_) {}
-      this.skipSeekOnReady = true
-    } else {
-      this.skipSeekOnReady = false
     }
+    this.skipSeekOnReady = true
 
     try {
       av.setListener({
