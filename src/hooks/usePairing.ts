@@ -27,8 +27,8 @@ export interface UsePairingResult {
   refresh: () => void
 }
 
-// Polling sempre ativo — Tizen WS conecta mas não entrega eventos Postgres
-const POLL_MS = 4000
+// Polling de fallback — só permanece ativo se Realtime não entregar
+const POLL_MS = 8000
 
 /** Cria um canal Supabase Realtime via WebSocket nativo (sem SDK, compatível com Tizen) */
 function createRealtimeChannel(
@@ -135,10 +135,13 @@ export function usePairing(): UsePairingResult {
       }
     }
 
-    // ── Realtime: fast-path, não confiável no Tizen ───────────────────────
-    wsRef.current = createRealtimeChannel('pair_tokens', `token=eq.${token.token}`, handleLinked)
+    // ── Realtime: fast-path, para o polling quando entregar ──────────────
+    wsRef.current = createRealtimeChannel('pair_tokens', `token=eq.${token.token}`, (row) => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+      handleLinked(row)
+    })
 
-    // ── Polling: sempre ativo desde o início (garante detecção no Tizen) ──
+    // ── Polling: fallback para Tizen onde Realtime não é confiável ────────
     pollRef.current = setInterval(async () => {
       const status = await checkPairStatus(token.token)
       if (status) handleLinked(status)
