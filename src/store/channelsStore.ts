@@ -9,6 +9,7 @@ import { Logger } from '../services/LoggerService'
 import * as db from '../services/dbClient'
 import { getChannelsByCode } from '../services/supabaseClient'
 import { preloadBatched } from '../services/imagePreloader'
+import { syncXtreamCatalog } from '../services/xtreamCatalogSync'
 
 // Slugifica uma string para usar como chave (sem deps externas)
 function slugKey(s: string): string {
@@ -190,6 +191,13 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
       if (result.type === 'xtream') {
         set({ status: 'idle' })
         await get().loadFromUrl(result.url)
+        // Sync em background — não bloqueia a UI
+        const entries = CatalogMatcher.lastCatalogEntries
+        if (entries && entries.length > 0) {
+          syncXtreamCatalog(entries, code).catch(e =>
+            console.warn('[Store] Sync catálogo Xtream falhou (non-fatal):', e)
+          )
+        }
         return
       }
 

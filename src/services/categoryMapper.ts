@@ -37,12 +37,13 @@ const CATEGORY_RULES: Array<{ category: UICategory; patterns: RegExp[] }> = [
   {
     category: 'series',
     patterns: [
-      /\btemporada\b/i, 
-      /\bseason\b/i, 
+      /\btemporada\b/i,
+      /\bseason\b/i,
       /\bs\d+e\d+\b/i,
       /\bepisodio\b/i,
       /\bepisode\b/i,
-      /\bseries?\b/i,  // volta mas com \b (word boundary)
+      /\bseries?\b/i,
+      /s[eé]ries?/i,
     ],
   },
   {
@@ -72,7 +73,7 @@ const CATEGORY_RULES: Array<{ category: UICategory; patterns: RegExp[] }> = [
   },
   {
     category: 'noticias',
-    patterns: [/notic/i, /news/i, /jornal/i, /cnn/i, /bbc/i, /al\s*jazeera/i],
+    patterns: [/not[ií]c/i, /news/i, /jornal/i, /cnn/i, /bbc/i, /al\s*jazeera/i],
   },
 ]
 

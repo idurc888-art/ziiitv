@@ -11,9 +11,19 @@ export interface MatchedChannel extends Channel {
   matchScore: number
 }
 
+export interface RawCatalogEntry {
+  name:          string
+  logo_url:      string
+  group_title:   string
+  content_type:  'live' | 'movie' | 'series'
+  stream_id:     string
+  episode_count: number
+}
+
 export interface MatchResult {
-  matched: MatchedChannel[]
-  unmatched: Channel[]
+  matched:        MatchedChannel[]
+  unmatched:      Channel[]
+  catalogEntries: RawCatalogEntry[]
 }
 
 // ─── XHR helper: Chromium 63 (Tizen 5.0) compatível ────────────────────────
@@ -49,6 +59,7 @@ function xhrFetch(url: string, onProgress?: (received: number, total: number) =>
 
 class CatalogMatcherClass {
   private worker: Worker | null = null
+  public  lastCatalogEntries: RawCatalogEntry[] | null = null
   private matchedByStreaming = new Map<string, { movies: MatchedChannel[]; series: MatchedChannel[] }>()
   private memoryCache = new Map<string, { matched: MatchedChannel[], unmatched: Channel[], timestamp: number, contentLength?: number }>()
 
@@ -65,7 +76,7 @@ class CatalogMatcherClass {
       }
       this.indexByStreaming(l1.matched)
       this.onProgress?.('done', 100, 'Carregado da memória!')
-      return { matched: l1.matched, unmatched: l1.unmatched }
+      return { matched: l1.matched, unmatched: l1.unmatched, catalogEntries: [] }
     }
 
     // L3: IndexedDB
@@ -79,7 +90,7 @@ class CatalogMatcherClass {
         }
         this.indexByStreaming(cached.matched)
         this.onProgress?.('done', 100, 'Carregado do cache!')
-        return { matched: cached.matched, unmatched: cached.unmatched }
+        return { matched: cached.matched, unmatched: cached.unmatched, catalogEntries: [] }
       }
     } catch (e) {
       console.warn('[CatalogMatcher] Erro ao ler cache:', e)
@@ -158,7 +169,7 @@ class CatalogMatcherClass {
             try { await db.put(url, { matched, unmatched, timestamp: Date.now() }) } catch (_) {}
             try { this.worker?.terminate() } catch (_) {}
             this.worker = null
-            settle({ matched, unmatched })
+            settle({ matched, unmatched, catalogEntries: [] })
           }
           if (status === 'error') {
             clearTimeout(timer)
@@ -215,7 +226,8 @@ class CatalogMatcherClass {
     // ── Parse sem split('\n') ─────────────────────────────────────────────
     // split() cria um array de 280k strings → ~50MB extras na RAM.
     // indexOf() + slice() processa uma linha por vez sem alocar o array todo.
-    const matchedMap = new Map<string, { canonical: CanonicalTitle; score: number; raws: any[] }>()
+    const matchedMap  = new Map<string, { canonical: CanonicalTitle; score: number; raws: any[] }>()
+    const catalogMap  = new Map<string, RawCatalogEntry>()
     let currentExtinf = ''
     let cursor = 0
     let linesSinceYield = 0
@@ -237,6 +249,33 @@ class CatalogMatcherClass {
           const commaIdx = extinf.lastIndexOf(',')
           const rawName = commaIdx >= 0 ? extinf.slice(commaIdx + 1).trim() : ''
           if (rawName) {
+            const logoM  = extinf.match(/tvg-logo="([^"]*)"/)
+            const groupM = extinf.match(/group-title="([^"]*)"/)
+            const logo   = logoM?.[1]  || ''
+            const group  = groupM?.[1] || 'Sem categoria'
+
+            // ── Catalog collection: captura TODAS as entradas Xtream ──────
+            const cType = line.includes('/live/')   ? 'live'
+                        : line.includes('/movie/')  ? 'movie'
+                        : line.includes('/series/') ? 'series'
+                        : null
+            if (cType) {
+              const sidM   = line.match(/\/(\d+)\.[a-z0-9]+$/i)
+              const dName  = cType === 'series'
+                ? rawName.replace(/[Ss]\d{1,2}\s*[Ee]\d{1,3}.*/g, '').replace(/\s*[-–]\s*$/, '').trim() || rawName
+                : rawName
+              const cKey   = `${cType}:${dName.toLowerCase()}`
+              if (catalogMap.has(cKey)) {
+                if (cType === 'series') catalogMap.get(cKey)!.episode_count++
+              } else {
+                catalogMap.set(cKey, {
+                  name: dName, logo_url: logo, group_title: group,
+                  content_type: cType, stream_id: sidM?.[1] || '', episode_count: 1,
+                })
+              }
+            }
+
+            // ── CANONICAL match (títulos curados) ─────────────────────────
             const cleanName = cleanChannelName(rawName)
             if (cleanName && cleanName.length >= 2) {
               const slug = slugify(cleanName)
@@ -254,14 +293,7 @@ class CatalogMatcherClass {
               }
 
               if (canonical) {
-                const logoM = extinf.match(/tvg-logo="([^"]*)"/)
-                const groupM = extinf.match(/group-title="([^"]*)"/)
-                const raw = {
-                  name: rawName,
-                  url: line,
-                  logo: logoM?.[1] || '',
-                  group: groupM?.[1] || 'Sem categoria',
-                }
+                const raw = { name: rawName, url: line, logo, group }
                 const key = canonical.slug
                 if (!matchedMap.has(key)) {
                   matchedMap.set(key, {
@@ -326,6 +358,8 @@ class CatalogMatcherClass {
       }
     }
 
+    const catalogEntries = Array.from(catalogMap.values())
+    this.lastCatalogEntries = catalogEntries
     this.onProgress?.('done', 100, `${matched.length} títulos encontrados`)
     this.indexByStreaming(matched)
 
@@ -336,7 +370,7 @@ class CatalogMatcherClass {
       console.error('[CatalogMatcher] Erro ao salvar cache:', dbErr)
     }
 
-    return { matched, unmatched: [] }
+    return { matched, unmatched: [], catalogEntries }
   }
 
   private indexByStreaming(matched: MatchedChannel[]) {
@@ -379,6 +413,7 @@ class CatalogMatcherClass {
     this.worker = null
     this.matchedByStreaming.clear()
     this.memoryCache.clear()
+    this.lastCatalogEntries = null
   }
 }
 
