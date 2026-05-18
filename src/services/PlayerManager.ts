@@ -41,7 +41,6 @@ class PlayerManager {
   private manifestCache = new Map<string, Promise<any>>()
   private cancellingCallback: (() => void) | null = null
   private skipSeekOnReady = false
-  private prepareGeneration = 0  // incrementa a cada executePlay — invalida callbacks antigos
 
   constructor() {}
 
@@ -176,10 +175,13 @@ class PlayerManager {
     let lastTimeUpdate = 0
     const startMs = this.getStartMs()
 
-    if (startMs > 0) {
+    const streamType = url.includes('.m3u8') ? 'hls' : url.includes('.mpd') ? 'dash' : url.includes('.mp4') ? 'mp4' : url.includes('.ts') ? 'ts' : 'unknown'
+    if (streamType === 'hls' && startMs > 0) {
       try { av.setStreamingProperty('START_POSITION', String(startMs)) } catch (_) {}
+      this.skipSeekOnReady = true
+    } else {
+      this.skipSeekOnReady = false
     }
-    this.skipSeekOnReady = true
 
     try {
       av.setListener({
@@ -228,11 +230,7 @@ class PlayerManager {
     } catch (_) {}
 
     try {
-      let prepareSettled = false
-      const myGeneration = ++this.prepareGeneration
       const prepareTimeout = setTimeout(() => {
-        if (prepareSettled || this.prepareGeneration !== myGeneration) return
-        prepareSettled = true
         Logger.hw('TIMEOUT', `prepareAsync sem resposta em 16s — ${url.substring(0, 60)}`)
         safeRelease(av)
         this.state = 'IDLE'
@@ -241,17 +239,12 @@ class PlayerManager {
 
       av.prepareAsync(
         () => {
-          if (prepareSettled || this.prepareGeneration !== myGeneration) {
-            clearTimeout(prepareTimeout)
-            return
-          }
           clearTimeout(prepareTimeout)
-          if (prepareSettled || this.currentUrl !== url) {
+          if (this.currentUrl !== url) {
             safeRelease(av)
             this.state = 'IDLE'
             return
           }
-          prepareSettled = true
           this.state = 'READY'
           
           try {
@@ -310,8 +303,6 @@ class PlayerManager {
         },
         () => {
           clearTimeout(prepareTimeout)
-          if (prepareSettled || this.prepareGeneration !== myGeneration) return
-          prepareSettled = true
           safeRelease(av)
           this.state = 'IDLE'
           callbacks.onError()
