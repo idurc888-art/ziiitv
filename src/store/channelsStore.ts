@@ -7,7 +7,7 @@ import { ContentCatalog } from '../services/contentCatalog'
 import { UnmatchedCatalog } from '../services/unmatchedCatalog'
 import { Logger } from '../services/LoggerService'
 import * as db from '../services/dbClient'
-import { getChannelsByCode } from '../services/supabaseClient'
+import { getChannelsByCode, type HomeSection } from '../services/supabaseClient'
 import { preloadBatched } from '../services/imagePreloader'
 import { syncXtreamCatalog } from '../services/xtreamCatalogSync'
 
@@ -36,6 +36,7 @@ interface ChannelsState {
   progressMessage: string
   error: string | null
   lastUrl: string | null
+  homeSections: HomeSection[] | null
 
   setCurrentChannel: (ch: Channel | null) => void
   loadMock: () => void
@@ -61,6 +62,7 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
   progressMessage: '',
   error: null,
   lastUrl: null,
+  homeSections: null,
   
   setCurrentChannel: (ch) => set({ currentChannel: ch }),
   
@@ -109,23 +111,50 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
       // Dispara o motor de match (Worker faz tudo: fetch + parse + match)
       const { matched, unmatched } = await CatalogMatcher.loadAndMatch(url)
 
-      // Converte matched[] para formato que a UI espera (grupos por categoria)
-      // Temporariamente usa o group original até refatorarmos o ContentSelector
+      const sections = get().homeSections
+      const isCurated = sections !== null && sections.length > 0
+
       const groupsByCategory: Record<string, Channel[]> = {}
-      
-      for (const ch of matched) {
-        // Usa tipo de mídia para classificar corretamente nas categorias da UI
-        const cat = ch.canonical.type === 'movie' ? 'filmes' : 'series'
-        if (!groupsByCategory[cat]) groupsByCategory[cat] = []
-        groupsByCategory[cat].push(ch)
+
+      if (isCurated) {
+        // ── Modo curado: SOMENTE o que está configurado no admin ─────────
+        const xtreamGroups = new Set(
+          sections
+            .filter(s => s.type === 'xtream_group' && s.config?.group_title)
+            .map(s => s.config!.group_title!)
+        )
+        const streamingSections = sections.filter(
+          s => s.type === 'by_streaming' && s.config?.streaming
+        )
+
+        for (const ch of unmatched) {
+          if (!xtreamGroups.has(ch.group)) continue
+          if (!groupsByCategory[ch.group]) groupsByCategory[ch.group] = []
+          groupsByCategory[ch.group].push(ch)
+        }
+        for (const ch of matched) {
+          const hasSection = streamingSections.some(s =>
+            s.config!.streaming === ch.canonical.streaming &&
+            (!s.config!.content_type || s.config!.content_type === ch.canonical.type)
+          )
+          if (!hasSection) continue
+          const cat = ch.canonical.type === 'movie' ? 'filmes' : 'series'
+          if (!groupsByCategory[cat]) groupsByCategory[cat] = []
+          groupsByCategory[cat].push(ch)
+        }
+      } else {
+        // ── Modo raw/auto: tudo que veio da lista ────────────────────────
+        for (const ch of matched) {
+          const cat = ch.canonical.type === 'movie' ? 'filmes' : 'series'
+          if (!groupsByCategory[cat]) groupsByCategory[cat] = []
+          groupsByCategory[cat].push(ch)
+        }
+        for (const ch of unmatched) {
+          if (!groupsByCategory[ch.group]) groupsByCategory[ch.group] = []
+          groupsByCategory[ch.group].push(ch)
+        }
       }
 
-      // Adiciona unmatched também (classificados pelo group-title da M3U)
-      for (const ch of unmatched) {
-        if (!groupsByCategory[ch.group]) groupsByCategory[ch.group] = []
-        groupsByCategory[ch.group].push(ch)
-      }
-      
       // Normaliza para as 8 categorias da UI
       const normalizedGroups = normalizeGroups(groupsByCategory)
       
@@ -189,9 +218,13 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
       const result = await getChannelsByCode(code)
 
       if (result.type === 'xtream') {
-        set({ status: 'idle' })
+        // Guarda homeSections ANTES de chamar loadFromUrl — ela lê do estado
+        const sections = result.presentationMode === 'curated' && result.homeSections.length > 0
+          ? result.homeSections
+          : null
+        set({ status: 'idle', homeSections: sections })
         await get().loadFromUrl(result.url)
-        // Sync em background — não bloqueia a UI
+        // Sync catálogo em background
         const entries = CatalogMatcher.lastCatalogEntries
         if (entries && entries.length > 0) {
           syncXtreamCatalog(entries, code).catch(e =>

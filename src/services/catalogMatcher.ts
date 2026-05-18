@@ -228,6 +228,7 @@ class CatalogMatcherClass {
     // indexOf() + slice() processa uma linha por vez sem alocar o array todo.
     const matchedMap  = new Map<string, { canonical: CanonicalTitle; score: number; raws: any[] }>()
     const catalogMap  = new Map<string, RawCatalogEntry>()
+    const unmatchedMap = new Map<string, { cType: 'live'|'movie'|'series'; name: string; logo: string; group: string; raws: { name: string; url: string; logo: string; group: string }[] }>()
     let currentExtinf = ''
     let cursor = 0
     let linesSinceYield = 0
@@ -254,17 +255,18 @@ class CatalogMatcherClass {
             const logo   = logoM?.[1]  || ''
             const group  = groupM?.[1] || 'Sem categoria'
 
-            // ── Catalog collection: captura TODAS as entradas Xtream ──────
+            // ── Catalog collection + Unmatched: captura TODAS as entradas Xtream ──
             const cType = line.includes('/live/')   ? 'live'
                         : line.includes('/movie/')  ? 'movie'
                         : line.includes('/series/') ? 'series'
                         : null
+            const sidM = cType ? line.match(/\/(\d+)\.[a-z0-9]+$/i) : null
+            const dName = cType === 'series'
+              ? rawName.replace(/[Ss]\d{1,2}\s*[Ee]\d{1,3}.*/g, '').replace(/\s*[-–]\s*$/, '').trim() || rawName
+              : rawName
+
             if (cType) {
-              const sidM   = line.match(/\/(\d+)\.[a-z0-9]+$/i)
-              const dName  = cType === 'series'
-                ? rawName.replace(/[Ss]\d{1,2}\s*[Ee]\d{1,3}.*/g, '').replace(/\s*[-–]\s*$/, '').trim() || rawName
-                : rawName
-              const cKey   = `${cType}:${dName.toLowerCase()}`
+              const cKey = `${cType}:${dName.toLowerCase()}`
               if (catalogMap.has(cKey)) {
                 if (cType === 'series') catalogMap.get(cKey)!.episode_count++
               } else {
@@ -275,7 +277,7 @@ class CatalogMatcherClass {
               }
             }
 
-            // ── CANONICAL match (títulos curados) ─────────────────────────
+            // ── CANONICAL match (títulos curados com TMDB) ────────────────
             const cleanName = cleanChannelName(rawName)
             if (cleanName && cleanName.length >= 2) {
               const slug = slugify(cleanName)
@@ -303,6 +305,16 @@ class CatalogMatcherClass {
                   })
                 }
                 matchedMap.get(key)!.raws.push(raw)
+              } else if (cType && unmatchedMap.size < 20000) {
+                // Entrada Xtream sem match canonical → coleta para modo raw
+                const uKey = `${cType}:${dName.toLowerCase()}`
+                if (!unmatchedMap.has(uKey)) {
+                  unmatchedMap.set(uKey, { cType, name: dName, logo, group, raws: [] })
+                }
+                const uEntry = unmatchedMap.get(uKey)!
+                if (uEntry.raws.length < 20) {
+                  uEntry.raws.push({ name: rawName, url: line, logo, group })
+                }
               }
             }
           }
@@ -358,9 +370,40 @@ class CatalogMatcherClass {
       }
     }
 
+    // ── Constrói unmatched Channel[] a partir do unmatchedMap ────────────
+    const unmatched: Channel[] = []
+    for (const entry of unmatchedMap.values()) {
+      if (entry.cType === 'series') {
+        const seenUrls = new Set<string>()
+        const episodeStreams: import('../types/channel').Stream[] = []
+        for (const raw of entry.raws) {
+          if (seenUrls.has(raw.url)) continue
+          seenUrls.add(raw.url)
+          const m = raw.name.match(/[STst](\d{1,2})\s*[Ee](\d{1,3})/)
+          const label = m ? `S${m[1].padStart(2,'0')}E${m[2].padStart(2,'0')}` : raw.name
+          episodeStreams.push({ url: raw.url, quality: detectQuality(raw.name), label })
+        }
+        episodeStreams.sort((a, b) => a.label.localeCompare(b.label))
+        if (episodeStreams.length > 0) {
+          unmatched.push({
+            id: slugify(entry.name) || entry.name.slice(0, 50),
+            name: entry.name,
+            logo: entry.logo,
+            group: entry.group,
+            streams: episodeStreams,
+            activeStream: episodeStreams[0],
+            variantCount: episodeStreams.length,
+          })
+        }
+      } else {
+        const channels = normalizeStreams(entry.raws)
+        if (channels.length > 0) unmatched.push(channels[0])
+      }
+    }
+
     const catalogEntries = Array.from(catalogMap.values())
     this.lastCatalogEntries = catalogEntries
-    this.onProgress?.('done', 100, `${matched.length} títulos encontrados`)
+    this.onProgress?.('done', 100, `${matched.length} matched · ${unmatched.length} raw`)
     this.indexByStreaming(matched)
 
     try {
@@ -370,7 +413,7 @@ class CatalogMatcherClass {
       console.error('[CatalogMatcher] Erro ao salvar cache:', dbErr)
     }
 
-    return { matched, unmatched: [], catalogEntries }
+    return { matched, unmatched, catalogEntries }
   }
 
   private indexByStreaming(matched: MatchedChannel[]) {
