@@ -10,6 +10,7 @@ import { getMostWatched, getGenreScores, getRecentlyWatched } from './historySer
 import { CatalogMatcher } from './catalogMatcher'
 import { UnmatchedCatalog } from './unmatchedCatalog'
 import { enrichBatch } from './tmdbService'
+import { enrichChannelsInPlace } from './xtreamEnricher'
 
 export type RowType = 'wide' | 'simple' | 'portrait' | 'grid'
 
@@ -393,7 +394,8 @@ async function backgroundEnrich(
     
     if (toEnrich.length === 0) return
     
-    const tmdbResults = await enrichBatch(toEnrich.slice(0, 20), 10, 300)
+    // Enriquece até 100 canais em background (antes era 20 — insuficiente para listas grandes)
+    const tmdbResults = await enrichBatch(toEnrich.slice(0, 100), 10, 300)
 
     for (const row of rows) {
       for (const ch of row.channels) {
@@ -611,7 +613,8 @@ export async function buildHomeContent(
   }
 
   // Fallback puro: nenhum dado disponível ainda (primeiro boot sem código)
-  if (!hasMatcherData && !UnmatchedCatalog.ready) {
+  // Suprimido se há directRows curadas — evita duplicar conteúdo
+  if (!hasMatcherData && !UnmatchedCatalog.ready && ContentCatalog.getDirectRows().length === 0) {
     ContentCatalog.resetUsed()
     const allFilmes = ContentCatalog.getPool('filmes')
     const allSeries = ContentCatalog.getPool('series')
@@ -682,6 +685,24 @@ export async function buildHomeContent(
 
   // Enriquece hero + backdrops faltantes em background (sem bloquear)
   backgroundEnrich(heroChannels, rows, heroTmdb, onContentUpdate)
+
+  // Enriquece directRows com backdrop + sinopse via Xtream player_api (sem bloquear)
+  const xtreamUrl = ContentCatalog.getXtreamUrl()
+  const directRowsData = ContentCatalog.getDirectRows()
+  if (xtreamUrl && directRowsData.length > 0) {
+    const toEnrich = directRowsData.flatMap(dr => dr.channels.slice(0, 10))
+    enrichChannelsInPlace(xtreamUrl, toEnrich).then(() => {
+      for (const row of rows) {
+        for (const ch of row.channels) {
+          if (ch.tmdb) row.tmdb.set(ch.name, ch.tmdb)
+        }
+      }
+      for (const ch of heroChannels) {
+        if (ch.tmdb) heroTmdb.set(ch.name, ch.tmdb)
+      }
+      if (onContentUpdate) onContentUpdate(heroTmdb, rows)
+    }).catch(() => {})
+  }
 
   return { heroChannels, heroTmdb, rows }
 }

@@ -48,12 +48,16 @@ class ContentCatalogClass {
   private warmupDone = false
   private warmupPromise: Promise<void> | null = null
   private _directRows: Array<{ title: string; contentType: string; channels: Channel[] }> = []
+  private _xtreamUrl: string | null = null
 
   initDirectRows(rows: Array<{ title: string; contentType: string; channels: Channel[] }>) {
     this._directRows = rows
   }
 
   getDirectRows() { return this._directRows }
+
+  setXtreamUrl(url: string | null) { this._xtreamUrl = url }
+  getXtreamUrl() { return this._xtreamUrl }
 
   // ─── Inicializar com canais normalizados ──────────
   init(groups: Record<UICategory, Channel[]>) {
@@ -85,9 +89,9 @@ class ContentCatalogClass {
   private async _doWarmup(): Promise<void> {
     console.log('[ContentCatalog] Iniciando warmup TMDB...')
 
-    // Fase 1: top 20 filmes + top 20 séries (só o essencial para a home)
-    const filmes  = this.catalog.get('filmes')?.slice(0, 20) ?? []
-    const series  = this.catalog.get('series')?.slice(0, 20) ?? []
+    // Fase 1: top 50 filmes + top 50 séries (antes era 20+20 — insuficiente)
+    const filmes  = this.catalog.get('filmes')?.slice(0, 50) ?? []
+    const series  = this.catalog.get('series')?.slice(0, 50) ?? []
 
     console.log(`[ContentCatalog] Warmup: ${filmes.length} filmes, ${series.length} séries`)
 
@@ -97,7 +101,7 @@ class ContentCatalogClass {
     ])
 
     this.warmupDone = true
-    console.log('[ContentCatalog] Warmup concluído (20+20 canais)')
+    console.log('[ContentCatalog] Warmup concluído (50+50 canais)')
   }
 
   private async _enrichCategory(cat: UICategory, channels: Channel[]): Promise<void> {

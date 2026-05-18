@@ -126,6 +126,8 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
         const streamingSections = sections.filter(
           s => s.type === 'by_streaming' && s.config?.streaming
         )
+        const hasCanonicalMovies = sections.some(s => s.type === 'canonical' || s.type === 'canonical_movies')
+        const hasCanonicalSeries = sections.some(s => s.type === 'canonical' || s.type === 'canonical_series')
 
         for (const ch of unmatched) {
           if (!xtreamGroups.has(ch.group)) continue
@@ -133,14 +135,35 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
           groupsByCategory[ch.group].push(ch)
         }
         for (const ch of matched) {
+          const isMovie = ch.canonical.type === 'movie'
+          const cat = isMovie ? 'filmes' : 'series'
+          if ((isMovie && hasCanonicalMovies) || (!isMovie && hasCanonicalSeries)) {
+            if (!groupsByCategory[cat]) groupsByCategory[cat] = []
+            groupsByCategory[cat].push(ch)
+            continue
+          }
           const hasSection = streamingSections.some(s =>
             s.config!.streaming === ch.canonical.streaming &&
             (!s.config!.content_type || s.config!.content_type === ch.canonical.type)
           )
           if (!hasSection) continue
-          const cat = ch.canonical.type === 'movie' ? 'filmes' : 'series'
           if (!groupsByCategory[cat]) groupsByCategory[cat] = []
           groupsByCategory[cat].push(ch)
+        }
+
+        // FALLBACK ENTERPRISE: se curado não gerou canais, carrega TUDO (evita tela em branco)
+        const totalCurated = Object.values(groupsByCategory).reduce((s, a) => s + a.length, 0)
+        if (totalCurated === 0) {
+          console.warn('[Store] Modo curado resultou em 0 canais — fallback para AUTO')
+          for (const ch of matched) {
+            const cat = ch.canonical.type === 'movie' ? 'filmes' : 'series'
+            if (!groupsByCategory[cat]) groupsByCategory[cat] = []
+            groupsByCategory[cat].push(ch)
+          }
+          for (const ch of unmatched) {
+            if (!groupsByCategory[ch.group]) groupsByCategory[ch.group] = []
+            groupsByCategory[ch.group].push(ch)
+          }
         }
       } else {
         // ── Modo raw/auto: tudo que veio da lista ────────────────────────
@@ -162,16 +185,27 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
       ContentCatalog.init(normalizedGroups)
 
       if (isCurated && sections) {
-        const xtreamDirectRows = sections
-          .filter(s => s.type === 'xtream_group' && s.config?.group_title)
-          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-          .map(s => ({
-            title: s.title,
-            contentType: s.config!.content_type || 'movie',
-            channels: groupsByCategory[s.config!.group_title!] || [],
-          }))
-          .filter(r => r.channels.length > 0)
-        ContentCatalog.initDirectRows(xtreamDirectRows)
+        const sortedSections = [...sections].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        const allDirectRows: Array<{ title: string; contentType: string; channels: Channel[] }> = []
+
+        for (const s of sortedSections) {
+          if (s.type === 'xtream_group' && s.config?.group_title) {
+            const channels = groupsByCategory[s.config.group_title] || []
+            if (channels.length > 0) allDirectRows.push({ title: s.title, contentType: s.config.content_type || 'movie', channels })
+          } else if (s.type === 'canonical_movies') {
+            const channels = groupsByCategory['filmes'] || []
+            if (channels.length > 0) allDirectRows.push({ title: s.title, contentType: 'movie', channels })
+          } else if (s.type === 'canonical_series') {
+            const channels = groupsByCategory['series'] || []
+            if (channels.length > 0) allDirectRows.push({ title: s.title, contentType: 'series', channels })
+          } else if (s.type === 'canonical') {
+            const isSeries = /série|series/i.test(s.title)
+            const channels = groupsByCategory[isSeries ? 'series' : 'filmes'] || []
+            if (channels.length > 0) allDirectRows.push({ title: s.title, contentType: isSeries ? 'series' : 'movie', channels })
+          }
+        }
+        ContentCatalog.initDirectRows(allDirectRows)
+        ContentCatalog.setXtreamUrl(allDirectRows.length > 0 ? url : null)
       }
 
       // Coleta todas as URLs de imagens
@@ -231,10 +265,15 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
       const result = await getChannelsByCode(code)
 
       if (result.type === 'xtream') {
-        // Guarda homeSections ANTES de chamar loadFromUrl — ela lê do estado
         const sections = result.presentationMode === 'curated' && result.homeSections.length > 0
           ? result.homeSections
           : null
+        console.log(
+          `[Store] HOME CARREGADA — mode: ${result.presentationMode}`,
+          `| sections: ${result.homeSections.length}`,
+          `| curated: ${sections !== null}`,
+          sections ? `| títulos: [${sections.map(s => s.title).join(', ')}]` : '| (auto — sem seções)'
+        )
         set({ status: 'idle', homeSections: sections })
         await get().loadFromUrl(result.url)
         // Sync catálogo em background
