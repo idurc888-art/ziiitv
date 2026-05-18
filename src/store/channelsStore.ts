@@ -185,7 +185,14 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
   loadFromCode: async (code) => {
     set({ status: 'fetching', bootStatus: 'warming', progress: 0, progressMessage: 'Ativando lista...', error: null, lastUrl: null })
     try {
-      const rows = await getChannelsByCode(code)
+      const result = await getChannelsByCode(code)
+
+      if (result.type === 'xtream') {
+        await get().loadFromUrl(result.url)
+        return
+      }
+
+      const rows = result.channels
       set({ progress: 60, progressMessage: 'Convertendo canais...' })
 
       const VALID_Q = new Set<string>(['4K', 'FHD', 'HD', 'SD', 'UNKNOWN'])
