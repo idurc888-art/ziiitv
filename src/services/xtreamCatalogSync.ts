@@ -16,6 +16,14 @@ export async function syncXtreamCatalog(
     const replace = i === 0 // primeira batch apaga catálogo anterior
 
     try {
+      const mapped = batch.map(e => ({
+        content_type:  e.content_type,
+        name:          e.name,
+        logo_url:      e.logo_url,
+        group_title:   e.group_title,
+        stream_id:     e.stream_id,
+        episode_count: e.episode_count,
+      }))
       await fetch(`${SUPABASE_URL}/functions/v1/sync-playlist-content`, {
         method: 'POST',
         headers: {
@@ -23,7 +31,7 @@ export async function syncXtreamCatalog(
           'Authorization': `Bearer ${ANON_KEY}`,
           'Content-Type':  'application/json',
         },
-        body: JSON.stringify({ code, entries: batch, replace }),
+        body: JSON.stringify({ code, entries: mapped, replace }),
       })
     } catch (e) {
       console.warn('[XtreamSync] Batch falhou (non-fatal):', e)
