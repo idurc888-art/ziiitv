@@ -2,6 +2,11 @@
 // Servidor TCP puro — recebe logs da TV. Zero dependências.
 // Uso: node scripts/log-server.js
 
+// ── Força UTF-8 no terminal (evita caracteres quebrados tipo â, ê, ù) ──
+if (process.stdout.setEncoding) process.stdout.setEncoding('utf8')
+if (process.stderr.setEncoding) process.stderr.setEncoding('utf8')
+process.env.LANG = 'pt_BR.UTF-8'
+
 const net = require('net')
 
 const COLORS = {

@@ -120,6 +120,13 @@ export default function App() {
 
   // ─── Boot: inicia playlist em background durante splash ───────────────────
   useEffect(() => {
+    // TIZEN FIX: Previne screensaver e reboot watchdog (2 minutos inativo)
+    try {
+      if ((window as any).tizen?.power) {
+        (window as any).tizen.power.request('SCREEN', 'SCREEN_NORMAL')
+      }
+    } catch (_) {}
+
     const tStart = performance.now()
     const savedCode = localStorage.getItem('ziiiTV_lastCode')
     const savedUrl  = localStorage.getItem('ziiiTV_lastUrl')

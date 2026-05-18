@@ -260,9 +260,11 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
   },
 
   loadFromCode: async (code) => {
+    console.log('[Store] loadFromCode iniciado — código:', code)
     set({ status: 'fetching', bootStatus: 'warming', progress: 0, progressMessage: 'Ativando lista...', error: null, lastUrl: null })
     try {
       const result = await getChannelsByCode(code)
+      console.log('[Store] getChannelsByCode retornou — type:', result.type)
 
       if (result.type === 'xtream') {
         const sections = result.presentationMode === 'curated' && result.homeSections.length > 0

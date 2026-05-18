@@ -10,6 +10,7 @@ import { Logger } from '../../services/LoggerService'
 import { loadingObserver } from '../../services/loadingObserver'
 import { debugStore } from '../../components/DebugOverlay'
 import AutoplayCard from '../../components/AutoplayCard'
+import TmdbTitleLogo from '../../components/TmdbTitleLogo'
 import {
     buildHomeContent,
     buildFilmesContent,
@@ -1267,7 +1268,13 @@ export default function HomeScreen({ groups, onPlay, onBack }: Props) {
                                                                 whiteSpace: 'normal',
                                                                 marginBottom: Math.round(10 * vw),
                                                             }}>
-                                                                {fT?.title || fch.name.replace(/[\[\]\{\}\(\)]/g, '').trim()}
+                                                                <TmdbTitleLogo
+                                                                    tmdbId={fT?.tmdbId}
+                                                                    mediaType={fT?.mediaType}
+                                                                    fallbackLogo={fch.logo}
+                                                                    fallbackText={fT?.title || fch.name.replace(/[\[\]\{\}\(\)]/g, '').trim()}
+                                                                    vw={vw}
+                                                                />
                                                             </div>
 
                                                             {/* Duração · Nota */}

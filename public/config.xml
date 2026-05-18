@@ -21,6 +21,7 @@
   <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.audio"/>
   <tizen:privilege name="http://tizen.org/privilege/system"/>
+  <tizen:privilege name="http://tizen.org/privilege/power"/>
   <tizen:privilege name="http://tizen.org/privilege/content.read"/>
   <tizen:privilege name="http://tizen.org/privilege/application.read"/>
   <tizen:privilege name="http://tizen.org/privilege/unlimitedstorage"/>

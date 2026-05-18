@@ -26,6 +26,7 @@ export interface TMDBResult {
   tmdbId: number    // ID interno TMDB
   mediaType: 'movie' | 'tv'  // tipo de mídia
   trailerKey: string // YouTube key (preenchido sob demanda)
+  titleLogo?: string // Logo transparente do filme/série (PNG)
   // Dados Completos (opcionais — retrocompatível com dados mockados antigos)
   tagline?: string          // frase de efeito
   genres?: string[]         // lista de gêneros
@@ -387,6 +388,41 @@ export async function fetchTrailerKey(tmdbId: number, mediaType: 'movie' | 'tv')
     return key
   } catch (e) {
     console.warn(`[TMDB] Erro ao buscar trailer:`, e)
+    return ''
+  }
+}
+
+// ─── Cache de Logos em memória ──────────────────────────────────────────────
+const logoCache = new Map<number, string>()
+
+/**
+ * Busca a logomarca oficial do título (PNG transparente).
+ * Cache em memória para evitar requests repetidos.
+ */
+export async function fetchTitleLogo(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<string> {
+  if (!tmdbId) return ''
+  if (logoCache.has(tmdbId)) return logoCache.get(tmdbId) || ''
+
+  const endpoint = mediaType === 'movie' ? `/movie/${tmdbId}/images` : `/tv/${tmdbId}/images`
+  const url = `${BASE_URL}${endpoint}?api_key=${API_KEY}&include_image_language=pt,en,null`
+
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return ''
+
+    const data = await res.json()
+    const logos = data.logos || []
+
+    // Prioridade de idioma: pt -> en -> qualquer um
+    let bestLogo = logos.find((l: any) => l.iso_639_1 === 'pt')
+    if (!bestLogo) bestLogo = logos.find((l: any) => l.iso_639_1 === 'en')
+    if (!bestLogo) bestLogo = logos[0]
+
+    const logoUrl = bestLogo ? `${IMG_BASE}/w500${bestLogo.file_path}` : ''
+    logoCache.set(tmdbId, logoUrl)
+    return logoUrl
+  } catch (e) {
+    console.warn(`[TMDB] Erro ao buscar logo:`, e)
     return ''
   }
 }

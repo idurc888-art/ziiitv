@@ -66,6 +66,14 @@ class CatalogMatcherClass {
   public onProgress?: (status: MatchStatus, progress: number, message: string) => void
   public onSilentUpdateReady?: (url: string, matched: MatchedChannel[], unmatched: Channel[]) => void
 
+  private isTizen(): boolean {
+    try {
+      return typeof (window as any).tizen !== 'undefined'
+    } catch {
+      return false
+    }
+  }
+
   async loadAndMatch(url: string): Promise<MatchResult> {
     // L1: RAM
     const l1 = this.memoryCache.get(url)
@@ -96,7 +104,14 @@ class CatalogMatcherClass {
       console.warn('[CatalogMatcher] Erro ao ler cache:', e)
     }
 
-    // Cold Start: tenta Worker (desktop); Tizen cai no fallback imediatamente
+    // No Tizen, type:module Worker não dispara onerror — cai silencioso por 3 minutos.
+    // Detecta Tizen e vai direto para main thread (XHR).
+    if (this.isTizen()) {
+      console.log('[CatalogMatcher] Tizen detectado — usando main thread diretamente')
+      return this.loadInMainThread(url)
+    }
+
+    // Cold Start (desktop): tenta Worker com timeout
     const workerResult = await this.tryWorkerWithTimeout(url, 180000)
     if (workerResult) return workerResult
 
@@ -198,6 +213,7 @@ class CatalogMatcherClass {
 
   // ─── Main Thread: XHR + indexOf sem split() + yield a cada 3k linhas ────
   private async loadInMainThread(url: string): Promise<MatchResult> {
+    console.log('[CatalogMatcher] loadInMainThread — iniciando XHR:', url.slice(0, 60))
     this.onProgress?.('fetching', 5, 'Conectando ao servidor...')
 
     // Índice O(1) do catálogo (~400 entradas — instantâneo)
@@ -221,7 +237,9 @@ class CatalogMatcherClass {
       }
     })
 
-    this.onProgress?.('parsing', 67, 'Processando canais...')
+    const mb = (text.length / 1024 / 1024).toFixed(1)
+    console.log(`[CatalogMatcher] XHR completo — ${mb} MB recebidos`)
+    this.onProgress?.('parsing', 67, `Processando lista (${mb} MB)...`)
 
     // ── Parse sem split('\n') ─────────────────────────────────────────────
     // split() cria um array de 280k strings → ~50MB extras na RAM.
