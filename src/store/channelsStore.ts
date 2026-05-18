@@ -188,6 +188,7 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
       const result = await getChannelsByCode(code)
 
       if (result.type === 'xtream') {
+        set({ status: 'idle' })
         await get().loadFromUrl(result.url)
         return
       }
