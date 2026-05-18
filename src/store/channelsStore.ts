@@ -157,9 +157,22 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
 
       // Normaliza para as 8 categorias da UI
       const normalizedGroups = normalizeGroups(groupsByCategory)
-      
+
       // Inicializa catálogo ANTES de atualizar estado React
       ContentCatalog.init(normalizedGroups)
+
+      if (isCurated && sections) {
+        const xtreamDirectRows = sections
+          .filter(s => s.type === 'xtream_group' && s.config?.group_title)
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .map(s => ({
+            title: s.title,
+            contentType: s.config!.content_type || 'movie',
+            channels: groupsByCategory[s.config!.group_title!] || [],
+          }))
+          .filter(r => r.channels.length > 0)
+        ContentCatalog.initDirectRows(xtreamDirectRows)
+      }
 
       // Coleta todas as URLs de imagens
       const allUrls: string[] = []

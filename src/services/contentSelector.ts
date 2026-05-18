@@ -456,6 +456,18 @@ export async function buildHomeContent(
     rows.push({ type: 'wide' as const, title: 'Continuar ', titleAccent: 'Assistindo', channels: dedupByCanonical(continueChannels), tmdb: new Map() })
   }
 
+  // ── Rows curadas do admin (xtream_group sections) ──
+  for (const dr of ContentCatalog.getDirectRows()) {
+    if (dr.channels.length < 1) continue
+    rows.push({
+      type: dr.contentType === 'live' ? 'simple' : 'portrait',
+      title: '',
+      titleAccent: dr.title,
+      channels: dr.channels.slice(0, 500),
+      tmdb: new Map(),
+    })
+  }
+
   // ── Fileira 4K: canais matchados (com TMDB completo) que têm stream 4K ──
   // Usa matched pois garantem backdrop landscape real. Fallback: não-matched sem imagem.
   const ultra4kKeys = new Set<string>()

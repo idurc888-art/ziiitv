@@ -47,12 +47,20 @@ class ContentCatalogClass {
   private usedIds = new Set<string>()   // IDs já usados em alguma página (dedup global)
   private warmupDone = false
   private warmupPromise: Promise<void> | null = null
+  private _directRows: Array<{ title: string; contentType: string; channels: Channel[] }> = []
+
+  initDirectRows(rows: Array<{ title: string; contentType: string; channels: Channel[] }>) {
+    this._directRows = rows
+  }
+
+  getDirectRows() { return this._directRows }
 
   // ─── Inicializar com canais normalizados ──────────
   init(groups: Record<UICategory, Channel[]>) {
     this.catalog.clear()
     this.usedIds.clear()
     this.warmupDone = false
+    this._directRows = []
 
     let totalChannels = 0
     for (const [cat, channels] of Object.entries(groups)) {
